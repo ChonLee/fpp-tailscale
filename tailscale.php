@@ -31,8 +31,8 @@ if (isset($_GET['page']) && $_GET['page'] == 'status') {
     // Handle form submission
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['install_tailscale'])) {
-            $install_output = shell_exec('/home/fpp/media/plugins/fpp-tailscale/scripts/fpp-install.sh 2>&1');
-            echo <pre>$install_output</pre>"Installing Tailscale...<br>";
+            exec('/home/fpp/media/plugins/fpp-tailscale/scripts/fpp-install.sh 2>&1');
+            echo "Installing Tailscale...<br>";
         } elseif (isset($_POST['uninstall_tailscale'])) {
             exec('/home/fpp/media/plugins/fpp-tailscale/scripts/fpp-uninstall.sh');
             echo "Uninstalling Tailscale...<br>";
