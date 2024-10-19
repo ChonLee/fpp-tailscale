@@ -11,7 +11,7 @@ if (isset($_GET['page']) && $_GET['page'] == 'status') {
     // Tailscale Status Page
 
     echo "<h1>Tailscale Status</h1>";
-    $output = shell_exec('sudo tailscale status');
+    $output = shell_exec('sudo tailscale status 2>&1');
     if ($output) {
         echo "<pre>$output</pre>";
     } else {
@@ -43,7 +43,7 @@ if (isset($_GET['page']) && $_GET['page'] == 'status') {
             exec('sudo tailscale down');
             echo "Stopping Tailscale...<br>";
         } elseif (isset($_POST['status_tailscale'])) {
-            $output = shell_exec('sudo tailscale status');
+            $output = shell_exec('sudo tailscale status 2>&1');
             echo "<pre>$output</pre>";
         }
     }
@@ -83,7 +83,7 @@ if (isset($_GET['page']) && $_GET['page'] == 'status') {
             exec('sudo tailscale down');
             echo "Stopping Tailscale...<br>";
         } elseif (isset($_POST['status_tailscale'])) {
-            $output = shell_exec('sudo tailscale status');
+            $output = shell_exec('sudo tailscale status 2>&1');
             echo "<pre>$output</pre>";
         } elseif (isset($_POST['tailscale_status_page'])) {
             // Redirect to the status page
