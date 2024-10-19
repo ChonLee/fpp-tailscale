@@ -7,7 +7,7 @@
 	"srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
 	"bugURL": "https://github.com/ChonLee/fpp-tailscale/issues",
 	"allowUpdates": 1,
-	"versions":     "versions": [
+	"versions": [
         {
             "minFPPVersion": "6.0",
             "maxFPPVersion": "6.99",
