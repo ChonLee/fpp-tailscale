@@ -1,0 +1,48 @@
+{
+	"repoName": "chontesttesttest",
+	"name": "Tailscale Plugin for FPP",
+	"author": "John Myers",
+	"description": "This plugin allows for remote connection through Tailscale.",
+	"homeURL": "https://github.com/ChonLee/fpp-tailscale",
+	"srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
+	"bugURL": "https://github.com/ChonLee/fpp-tailscale/issues",
+	"allowUpdates": 1,
+	"versions":     "versions": [
+        {
+            "minFPPVersion": "6.0",
+            "maxFPPVersion": "6.99",
+            "branch": "preV7",
+            "sha": "",
+            "dependencies": {
+                "packages": [
+                    "mpd",
+                    "mpc"
+                ]
+            }
+        },
+        {
+            "minFPPVersion": "7.0",
+            "maxFPPVersion": "7.99",
+            "branch": "master",
+            "sha": "",
+            "dependencies": {
+                "packages": [
+                    "mpd",
+                    "mpc"
+                ]
+            }
+        },
+        {
+            "minFPPVersion": "8.0",
+            "maxFPPVersion": "0",
+            "branch": "master",
+            "sha": "",
+            "dependencies": {
+                "packages": [
+                    "mpd",
+                    "mpc"
+                ]
+            }
+        }
+    ]
+}
