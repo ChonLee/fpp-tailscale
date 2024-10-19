@@ -1,5 +1,5 @@
 {
-	"repoName": "chontesttesttest",
+	"repoName": "fpp-tailscale",
 	"name": "Tailscale Plugin for FPP",
 	"author": "John Myers",
 	"description": "This plugin allows for remote connection through Tailscale.",
