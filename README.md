@@ -1,4 +1,4 @@
 # fpp-tailscale
 Template plugin for FPP Plugin tailscale
 
-WIP
+WIP: currently not working.
