@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p>This device can connect remotely through Tailscale.</p>
 
     <h2>Tailscale Status</h2>
-    <pre id="status"><?php echo getTailscaleStatus(); ?></pre>
+    <pre id="status"><?php echo htmlspecialchars(getTailscaleStatus()); ?></pre>
 
     <h2>Authorize Tailscale</h2>
     <div id="auth-container">
