@@ -6,17 +6,11 @@ Description: Manage Tailscale from FPP.
 */
 
 $plugin_dir = __DIR__;
-$auth_url_file = $plugin_dir . '/auth_url.txt';
-
-// Get Tailscale status
-function getTailscaleStatus() {
-    $output = shell_exec('sudo tailscale status 2>&1');
-    return $output ? htmlspecialchars($output) : "Unable to retrieve Tailscale status.";
-}
+$auth_file = $plugin_dir . '/auth_url.txt';
 
 // Handle AJAX request for status
 if (isset($_GET['ajax_status'])) {
-    echo getTailscaleStatus();
+    echo shell_exec('sudo tailscale status 2>&1');
     exit;
 }
 
@@ -39,7 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<!-- Plugin content -->
 <div class="fpp-tailscale-plugin">
     <h1>FPP Tailscale Plugin</h1>
 
@@ -48,36 +41,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p>This device can connect remotely through Tailscale.</p>
 
     <h2>Tailscale Status</h2>
-    <pre id="status"><?php echo htmlspecialchars(getTailscaleStatus()); ?></pre>
+    <div id="status">Loading status...</div>
 
     <h2>Authorize Tailscale</h2>
-    <div id="auth-container">
-        <p>Waiting for Tailscale authorization link...</p>
-    </div>
+    <div id="auth-container">Waiting for authorization link...</div>
 
     <h2>Manage Tailscale</h2>
     <form method="post">
         <input type="submit" name="install_tailscale" value="Install Tailscale">
-        <input type="submit" name="uninstall_tailscale" value="Uninstall Tailscale"><br>
         <input type="submit" name="start_tailscale" value="Start Tailscale">
         <input type="submit" name="stop_tailscale" value="Stop Tailscale">
+        <input type="submit" name="uninstall_tailscale" value="Uninstall Tailscale">
     </form>
 
     <script>
     const authContainer = document.getElementById('auth-container');
-    const statusPre = document.getElementById('status');
+    const statusContainer = document.getElementById('status');
 
-    // Poll auth_url.txt for the authorization link
+    // Poll auth_url.txt for authorization link
     async function updateAuthLink() {
         try {
-            const response = await fetch('auth_url.txt');
-            const authLink = (await response.text()).trim();
-            if (authLink && authLink.startsWith('https://login.tailscale.com')) {
-                authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
+            const resp = await fetch('auth_url.txt');
+            const link = (await resp.text()).trim();
+            if(link.startsWith('https://login.tailscale.com')) {
+                authContainer.innerHTML = `<a class="button" href="${link}" target="_blank">Click here to authorize Tailscale</a>`;
             } else {
                 setTimeout(updateAuthLink, 2000);
             }
-        } catch (err) {
+        } catch(e) {
             setTimeout(updateAuthLink, 2000);
         }
     }
@@ -85,16 +76,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Poll Tailscale status every 3 seconds
     async function updateStatus() {
         try {
-            const response = await fetch('?ajax_status=1');
-            const newStatus = await response.text();
-            statusPre.textContent = newStatus;
+            const resp = await fetch('?ajax_status=1');
+            const text = await resp.text();
+            statusContainer.textContent = text;
 
-            if (newStatus.toLowerCase().includes('100%') || newStatus.toLowerCase().includes('active')) {
+            if (text.toLowerCase().includes('100%') || text.toLowerCase().includes('active')) {
                 authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
             }
 
             setTimeout(updateStatus, 3000);
-        } catch (err) {
+        } catch(e) {
             setTimeout(updateStatus, 3000);
         }
     }
@@ -109,7 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         text-align: center;
         padding: 20px;
     }
-    .fpp-tailscale-plugin a.button, .fpp-tailscale-plugin input[type=submit] {
+    .fpp-tailscale-plugin a.button,
+    .fpp-tailscale-plugin input[type=submit] {
         display: inline-block;
         padding: 10px 20px;
         font-size: 16px;
@@ -121,12 +113,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         border: none;
         cursor: pointer;
     }
-    .fpp-tailscale-plugin pre {
+    .fpp-tailscale-plugin #status {
+        font-family: monospace;
+        white-space: pre;
         text-align: left;
-        display: inline-block;
-        padding: 10px;
         background: #f0f0f0;
+        padding: 10px;
+        display: inline-block;
         border-radius: 5px;
+        min-width: 400px;
     }
     </style>
 </div>
