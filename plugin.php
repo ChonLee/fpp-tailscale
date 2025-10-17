@@ -8,24 +8,27 @@ if (isset($_GET['action'])) {
         case "install":
         case "up":
         case "down":
-            echo shell_exec("bash $script_path $action 2>&1");
+            $output = shell_exec("sudo bash $script_path $action 2>&1");
+            if (!$output) $output = "No output. Check sudo permissions and PATH.";
+            echo $output;
             break;
+
         case "auth":
-            $link = shell_exec("bash $script_path auth 2>/dev/null");
+            $link = shell_exec("sudo bash $script_path auth 2>/dev/null");
             echo $link ? $link : '';
             break;
+
         case "status":
             header('Content-Type: application/json');
-            echo shell_exec("bash $script_path status 2>/dev/null");
+            echo shell_exec("sudo bash $script_path status 2>/dev/null");
             break;
     }
     exit;
 }
 
-// Handle _menu parameter added by FPP menu system
-if (isset($_GET['_menu'])) {
-    // Simply load the plugin UI for any _menu value
-    // You could also switch based on $_GET['_menu'] if you have multiple pages
+// Handle FPP _menu parameter to prevent "page doesn't exist"
+if (!isset($_GET['_menu'])) {
+    $_GET['_menu'] = 'status';
 }
 ?>
 <!DOCTYPE html>
@@ -36,22 +39,71 @@ if (isset($_GET['_menu'])) {
     <script src="plugin.js"></script>
 </head>
 <body>
-<h2>FPP Tailscale Manager</h2>
+    <h2>FPP Tailscale Manager</h2>
 
-<button onclick="runAction('install')">Install Tailscale</button>
-<button onclick="runAction('up')">Tailscale Up</button>
-<button onclick="runAction('down')">Tailscale Down</button>
+    <button onclick="runAction('install')">Install Tailscale</button>
+    <button onclick="runAction('up')">Tailscale Up</button>
+    <button onclick="runAction('down')">Tailscale Down</button>
 
-<h3>Installation Log</h3>
-<pre id="log"></pre>
+    <h3>Installation Log</h3>
+    <pre id="log"></pre>
 
-<h3>Authorization</h3>
-<div id="authLink"></div>
+    <h3>Authorization</h3>
+    <div id="authLink"></div>
 
-<h3>Status</h3>
-<pre id="status"></pre>
+    <h3>Status</h3>
+    <pre id="status"></pre>
 
 <script>
+    function runAction(action){
+        const logDiv = document.getElementById('log');
+        const authDiv = document.getElementById('authLink');
+
+        fetch(`?action=${action}`)
+        .then(response => response.text())
+        .then(data => {
+            if(action === 'install') {
+                logDiv.innerText = data;
+            }
+            if(action === 'up' || action === 'down') {
+                updateStatus();
+            }
+        });
+
+        if(action === 'install') {
+            fetch('?action=auth')
+            .then(res => res.text())
+            .then(link => {
+                if(link){
+                    authDiv.innerHTML = `<a href="${link}" target="_blank">Authorize Tailscale</a>`;
+                    authDiv.style.display = 'block';
+                }
+            });
+        }
+    }
+
+    function updateStatus(){
+        fetch('?action=status')
+        .then(res => res.json())
+        .then(data => {
+            const statusDiv = document.getElementById('status');
+            const authDiv = document.getElementById('authLink');
+
+            if(data && Object.keys(data).length){
+                statusDiv.innerText = JSON.stringify(data, null, 2);
+                authDiv.style.display = 'none';
+            } else {
+                statusDiv.innerText = "Tailscale not connected";
+                authDiv.style.display = 'block';
+                fetch('?action=auth')
+                .then(res => res.text())
+                .then(link => {
+                    if(link) authDiv.innerHTML = `<a href="${link}" target="_blank">Authorize Tailscale</a>`;
+                });
+            }
+        });
+    }
+
     // Poll for status every 5 seconds
     setInterval(updateStatus, 5000);
     updateStatus();
