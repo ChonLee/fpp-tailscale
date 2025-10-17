@@ -34,8 +34,20 @@
         },
         {
             "minFPPVersion": "8.0",
-            "maxFPPVersion": "0",
+            "maxFPPVersion": "8.9",
             "branch": "master",
+            "sha": "",
+            "dependencies": {
+                "packages": [
+                    "mpd",
+                    "mpc"
+                ]
+            }
+        },
+        {
+            "minFPPVersion": "9.0",
+            "maxFPPVersion": "0",
+            "branch": "testing",
             "sha": "",
             "dependencies": {
                 "packages": [
