@@ -1,35 +1,41 @@
 #!/bin/bash
-# FPP Tailscale Plugin Installer
-# Author: John Myers
+# fpp-install.sh
+# FPP Tailscale Plugin Install Script
 
-PLUGIN_DIR="$(dirname "$(readlink -f "$0")")"
-AUTH_FILE="$PLUGIN_DIR/../auth_url.txt"
+PLUGIN_DIR="/home/fpp/media/plugins/fpp-tailscale"
+AUTH_FILE="$PLUGIN_DIR/auth_url.txt"
 
-echo "Installing Tailscale..."
+echo "Starting FPP Tailscale Plugin installation..."
 
-# Install Tailscale using official install script
-curl -fsSL https://tailscale.com/install.sh | sh
+# 1. Update package lists
+sudo apt-get update -y
 
-# Enable the daemon
-sudo systemctl enable --now tailscaled
+# 2. Install Tailscale if not already installed
+if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Installing Tailscale..."
+    curl -fsSL https://tailscale.com/install.sh | sh
+else
+    echo "Tailscale already installed."
+fi
 
-# Bring up Tailscale and capture the auth link
-# Run in background to avoid blocking
-(
-    # Wait a few seconds to ensure tailscaled is ready
-    sleep 3
+# 3. Ensure plugin directory exists
+mkdir -p "$PLUGIN_DIR"
 
-    # Get auth URL
-    auth_link=$(sudo tailscale up 2>&1 | grep "https://login.tailscale.com")
+# 4. Create placeholder auth_url.txt if it doesn't exist
+if [ ! -f "$AUTH_FILE" ]; then
+    echo "Creating placeholder auth_url.txt..."
+    echo "Waiting for authorization link..." > "$AUTH_FILE"
+fi
 
-    # Write auth link to plugin folder
-    if [ -n "$auth_link" ]; then
-        echo "$auth_link" > "$AUTH_FILE"
-        chmod 644 "$AUTH_FILE"
-        echo "Tailscale auth link saved to $AUTH_FILE"
-    else
-        echo "Could not generate Tailscale auth link"
-    fi
-) &
+# 5. Set permissions so FPP can read the file
+chown fpp:fpp "$AUTH_FILE"
+chmod 644 "$AUTH_FILE"
 
-echo "Tailscale installation started. Authorization link will appear in the plugin shortly."
+# 6. Provide instructions to user
+echo ""
+echo "Installation complete!"
+echo "To authorize Tailscale, click the 'Authorize Tailscale' button in the plugin page."
+echo "If you have an auth key, you can run:"
+echo "sudo tailscale up --authkey=<YOUR_KEY> > $AUTH_FILE 2>&1 &"
+
+exit 0
