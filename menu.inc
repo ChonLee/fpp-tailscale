@@ -5,40 +5,52 @@
 # page - PHP file to display for this menu item
 # wrap - 0/1 to hide or display the FPP header, menu, and footer on this page.
 #        This does not apply for pages which begin with http:// or https://
-$pluginName = "FPP Tailscale";
-$pluginDir = "fpp-tailscale";
 
-$menu[$pluginName] = array(
-    'menuText' => $pluginName,
-    'menuLink' => "plugin.php?plugin=".$pluginDir,
-    'menuSubText' => 'Manage Tailscale VPN',
-    'menuParent' => 'Plugins'
+$menuEntries = Array(
+	Array(
+		'text' => 'Tailscale',
+		'type' => 'status',
+		'page' => 'tailscale.php',
+		'wrap' => 1
+	),
+	Array(
+		'text' => 'Tailscale - Help',
+		'type' => 'help',
+		'page' => 'help.php',
+		'wrap' => 1
+	),
+	Array(
+		'text' => 'Tailscale - About',
+		'type' => 'help',
+		'page' => 'about.php',
+		'wrap' => 1
+	)
 );
 
-// ##############################################################################
-// # Display the menu entries for this plugin.
-// #
-// # It is expected that two variables are already set:
-// # $plugin - contains the name of the current plugin directory/repoName
-// # $menu - contains the name of the menu section/type
-// foreach ($menuEntries as $entry)
-// {
-// 	if ($entry['type'] != $menu)
-// 		continue;
+##############################################################################
+# Display the menu entries for this plugin.
+#
+# It is expected that two variables are already set:
+# $plugin - contains the name of the current plugin directory/repoName
+# $menu - contains the name of the menu section/type
+foreach ($menuEntries as $entry)
+{
+	if ($entry['type'] != $menu)
+		continue;
 
-// 	if (preg_match('/^http.?:\/\//', $entry['page']))
-// 	{
-// 		printf("<li><a href='%s' target='_blank'>%s</a></li>\n",
-// 			$entry['page'], $entry['text']);
-// 	}
-// 	else
-// 	{
-// 		$nopage = '';
-// 		if (isset($entry['wrap']) && ($entry['wrap'] == 0))
-// 			$nopage = '&nopage=1';
+	if (preg_match('/^http.?:\/\//', $entry['page']))
+	{
+		printf("<li><a href='%s' target='_blank'>%s</a></li>\n",
+			$entry['page'], $entry['text']);
+	}
+	else
+	{
+		$nopage = '';
+		if (isset($entry['wrap']) && ($entry['wrap'] == 0))
+			$nopage = '&nopage=1';
 
-// 		printf("<li><a href='plugin.php?plugin=%s&page=%s%s'>%s</a></li>\n",
-// 			$plugin, $entry['page'], $nopage, $entry['text']);
-// 	}
-// }
+		printf("<li><a href='plugin.php?plugin=%s&page=%s%s'>%s</a></li>\n",
+			$plugin, $entry['page'], $nopage, $entry['text']);
+	}
+}
 ?>
