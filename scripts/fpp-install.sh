@@ -1,45 +1,41 @@
 #!/bin/bash
-# fpp-start.sh
-# FPP Tailscale Plugin Start Script
+# fpp-install.sh
+# Install Tailscale and write auth link
 
-PLUGIN_DIR="/home/fpp/media/plugins/fpp-tailscale"
-AUTH_FILE="$PLUGIN_DIR/auth_url.txt"
+AUTH_FILE="/home/fpp/media/plugins/fpp-tailscale/auth_url.txt"
 
-echo "Starting Tailscale..."
+echo "Installing Tailscale..."
 
-# Make sure the plugin directory exists
-mkdir -p "$PLUGIN_DIR"
+# Install curl if missing
+if ! command -v curl >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y curl
+fi
 
-# Check if Tailscale is installed
+# Add Tailscale repo
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.gpg | sudo gpg --dearmor -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main" | sudo tee /etc/apt/sources.list.d/tailscale.list
+
+# Install Tailscale
+sudo apt-get update
+sudo apt-get install -y tailscale
+
+# Check installation
 if ! command -v tailscale >/dev/null 2>&1; then
-    echo "Tailscale is not installed. Please run fpp-install.sh first."
+    echo "Tailscale install failed"
     exit 1
 fi
 
-# Stop Tailscale if already running
-if tailscale status >/dev/null 2>&1; then
-    echo "Stopping existing Tailscale session..."
-    sudo tailscale down
+# Start Tailscale in headless mode and get auth URL
+AUTH_URL=$(sudo tailscale up --authkey= --qr --accept-routes 2>&1 | grep "https://login.tailscale.com")
+
+if [ -z "$AUTH_URL" ]; then
+    echo "Failed to get Tailscale auth URL"
+    exit 1
 fi
 
-# Start Tailscale in up mode and capture the auth URL
-echo "Bringing Tailscale up..."
-# This will output the auth URL if not yet authenticated
-AUTH_URL=$(sudo tailscale up --accept-routes --accept-dns --reset 2>&1 | grep "https://login.tailscale.com")
+# Write auth URL to file
+mkdir -p "$(dirname "$AUTH_FILE")"
+echo "$AUTH_URL" > "$AUTH_FILE"
 
-# If the URL is found, write it to auth_url.txt
-if [ -n "$AUTH_URL" ]; then
-    echo "$AUTH_URL" > "$AUTH_FILE"
-    echo "Authorization URL written to $AUTH_FILE"
-else
-    # If Tailscale is already authenticated, show running status
-    echo "Tailscale is already authorized or running."
-    echo "Tailscale is authorized and running!" > "$AUTH_FILE"
-fi
-
-# Set permissions so FPP web interface can read the file
-chown fpp:fpp "$AUTH_FILE"
-chmod 644 "$AUTH_FILE"
-
-echo "Tailscale start process complete."
-exit 0
+echo "Tailscale installed. Authorization link written to $AUTH_FILE"
