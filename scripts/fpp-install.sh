@@ -1,44 +1,36 @@
 #!/bin/bash
-# fpp-install.sh - Install Tailscale on FPP and generate auth URL
+# fpp-install.sh
+# Installs Tailscale on FPP and outputs the auth URL to auth_url.txt
 
-# Get plugin base directory (one level above scripts/)
-PLUGIN_DIR="$(dirname "$0")/.."
-
-# Files to communicate with PHP
-STATUS_FILE="$PLUGIN_DIR/install_status.txt"
+# Location for plugin files
+PLUGIN_DIR="/home/fpp/media/plugins/fpp-tailscale"
 AUTH_FILE="$PLUGIN_DIR/auth_url.txt"
 
-# Clear previous files
-> "$STATUS_FILE"
-> "$AUTH_FILE"
+# Ensure plugin dir exists
+mkdir -p "$PLUGIN_DIR"
 
-echo "Starting Tailscale installation..." >> "$STATUS_FILE"
+echo "Installing Tailscale..."
 
-# Update package list
-echo "Updating system packages..." >> "$STATUS_FILE"
-sudo apt-get update -y >> "$STATUS_FILE" 2>&1
-
-# Install curl if not present
-if ! command -v curl >/dev/null 2>&1; then
-    echo "Installing curl..." >> "$STATUS_FILE"
-    sudo apt-get install curl -y >> "$STATUS_FILE" 2>&1
+# Install Tailscale using official install script
+curl -fsSL https://tailscale.com/install.sh | sh
+if [ $? -ne 0 ]; then
+    echo "Error installing Tailscale"
+    exit 1
 fi
 
-# Download and install Tailscale
-echo "Installing Tailscale..." >> "$STATUS_FILE"
-curl -fsSL https://tailscale.com/install.sh | sh >> "$STATUS_FILE" 2>&1
+echo "Tailscale installed."
 
-# Bring up Tailscale in auth mode
-echo "Starting Tailscale in auth mode..." >> "$STATUS_FILE"
-sudo tailscale up --authkey=$(tailscale generate-authkey) --advertise-exit-node --accept-routes --reset >> "$STATUS_FILE" 2>&1 &
+# Bring Tailscale up and capture the auth URL
+echo "Starting Tailscale to get auth URL..."
+AUTH_URL=$(sudo tailscale up --qr | grep -o 'https://login.tailscale.com/[^\ ]*')
 
-# Retrieve auth URL
-AUTH_URL=$(sudo tailscale up --qr 2>&1 | grep 'https://login.tailscale.com')
 if [ -n "$AUTH_URL" ]; then
+    echo "Auth URL captured: $AUTH_URL"
     echo "$AUTH_URL" > "$AUTH_FILE"
-    echo "Auth URL saved to $AUTH_FILE" >> "$STATUS_FILE"
+    chmod 644 "$AUTH_FILE"
 else
-    echo "Unable to get Tailscale auth URL yet." >> "$STATUS_FILE"
+    echo "Could not get auth URL. Tailscale may already be authorized."
+    echo "" > "$AUTH_FILE"
 fi
 
-echo "Installation script finished." >> "$STATUS_FILE"
+echo "Installation complete. Open your plugin page and click the authorization link."
