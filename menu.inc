@@ -7,7 +7,7 @@
 #        This does not apply for pages which begin with http:// or https://
 $pluginName = "FPP Tailscale";
 $pluginDir = "fpp-tailscale";
-$pluginUrl = "/plugin.php?plugin=".$pluginDir;
+$pluginUrl = "plugin.php?plugin=".$pluginDir;
 
 $menuEntries = Array(
 	Array(
