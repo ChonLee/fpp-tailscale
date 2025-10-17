@@ -5,12 +5,15 @@
 # page - PHP file to display for this menu item
 # wrap - 0/1 to hide or display the FPP header, menu, and footer on this page.
 #        This does not apply for pages which begin with http:// or https://
+$pluginName = "FPP Tailscale";
+$pluginDir = "fpp-tailscale";
+$pluginUrl = "/plugin.php?plugin=".$pluginDir;
 
 $menuEntries = Array(
 	Array(
 		'text' => 'Tailscale',
 		'type' => 'status',
-		'page' => 'tailscale.php',
+		'page' => $pluginUrl,
 		'wrap' => 1
 	),
 	Array(

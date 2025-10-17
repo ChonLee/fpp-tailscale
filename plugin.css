@@ -1,0 +1,5 @@
+body { font-family: Arial, sans-serif; margin: 20px; }
+button { margin: 5px; padding: 10px; }
+pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+h2, h3 { margin-top: 20px; }
+#authLink a { color: blue; font-weight: bold; }
