@@ -1,54 +1,44 @@
 #!/bin/bash
-# fpp-install.sh
-STATUS_FILE="/home/fpp/media/plugins/fpp-tailscale/install_status.txt"
-AUTH_FILE="/home/fpp/media/plugins/fpp-tailscale/auth_url.txt"
+# fpp-install.sh - Install Tailscale on FPP and generate auth URL
 
-# Clear previous status
-echo "" > "$STATUS_FILE"
-echo "" > "$AUTH_FILE"
+# Get plugin base directory (one level above scripts/)
+PLUGIN_DIR="$(dirname "$0")/.."
 
-log() {
-    echo "$(date '+%H:%M:%S') $1" >> "$STATUS_FILE"
-}
+# Files to communicate with PHP
+STATUS_FILE="$PLUGIN_DIR/install_status.txt"
+AUTH_FILE="$PLUGIN_DIR/auth_url.txt"
 
-log "Starting Tailscale installation..."
+# Clear previous files
+> "$STATUS_FILE"
+> "$AUTH_FILE"
 
-# Install curl if missing
+echo "Starting Tailscale installation..." >> "$STATUS_FILE"
+
+# Update package list
+echo "Updating system packages..." >> "$STATUS_FILE"
+sudo apt-get update -y >> "$STATUS_FILE" 2>&1
+
+# Install curl if not present
 if ! command -v curl >/dev/null 2>&1; then
-    log "Installing curl..."
-    sudo apt-get update >> "$STATUS_FILE" 2>&1
-    sudo apt-get install -y curl >> "$STATUS_FILE" 2>&1
+    echo "Installing curl..." >> "$STATUS_FILE"
+    sudo apt-get install curl -y >> "$STATUS_FILE" 2>&1
 fi
 
-# Add Tailscale repo
-log "Adding Tailscale repository..."
-curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.gpg | sudo gpg --dearmor -o /usr/share/keyrings/tailscale-archive-keyring.gpg >> "$STATUS_FILE" 2>&1
-echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main" | sudo tee /etc/apt/sources.list.d/tailscale.list >> "$STATUS_FILE" 2>&1
+# Download and install Tailscale
+echo "Installing Tailscale..." >> "$STATUS_FILE"
+curl -fsSL https://tailscale.com/install.sh | sh >> "$STATUS_FILE" 2>&1
 
-# Install Tailscale
-log "Installing Tailscale..."
-sudo apt-get update >> "$STATUS_FILE" 2>&1
-sudo apt-get install -y tailscale >> "$STATUS_FILE" 2>&1
+# Bring up Tailscale in auth mode
+echo "Starting Tailscale in auth mode..." >> "$STATUS_FILE"
+sudo tailscale up --authkey=$(tailscale generate-authkey) --advertise-exit-node --accept-routes --reset >> "$STATUS_FILE" 2>&1 &
 
-# Check installation
-if ! command -v tailscale >/dev/null 2>&1; then
-    log "Tailscale install failed"
-    exit 1
+# Retrieve auth URL
+AUTH_URL=$(sudo tailscale up --qr 2>&1 | grep 'https://login.tailscale.com')
+if [ -n "$AUTH_URL" ]; then
+    echo "$AUTH_URL" > "$AUTH_FILE"
+    echo "Auth URL saved to $AUTH_FILE" >> "$STATUS_FILE"
+else
+    echo "Unable to get Tailscale auth URL yet." >> "$STATUS_FILE"
 fi
 
-log "Tailscale installed."
-
-# Start Tailscale in headless mode and get auth URL
-log "Getting Tailscale auth link..."
-AUTH_URL=$(sudo tailscale up --authkey= --qr --accept-routes 2>&1 | grep "https://login.tailscale.com")
-
-if [ -z "$AUTH_URL" ]; then
-    log "Failed to get Tailscale auth URL"
-    exit 1
-fi
-
-# Write auth URL to file
-mkdir -p "$(dirname "$AUTH_FILE")"
-echo "$AUTH_URL" > "$AUTH_FILE"
-log "Authorization link written to $AUTH_FILE"
-log "Installation complete."
+echo "Installation script finished." >> "$STATUS_FILE"
