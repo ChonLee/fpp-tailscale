@@ -12,12 +12,15 @@ $auth_url_file = $plugin_dir . '/auth_url.txt';
 // Function to get Tailscale status
 function getTailscaleStatus() {
     $output = shell_exec('sudo tailscale status 2>&1');
-    if ($output) {
-        return htmlspecialchars($output);
-    } else {
-        return "Unable to retrieve Tailscale status.";
-    }
+    return $output ? htmlspecialchars($output) : "Unable to retrieve Tailscale status.";
 }
+
+// Handle optional AJAX call to update status dynamically
+if (isset($_GET['ajax_status'])) {
+    echo getTailscaleStatus();
+    exit;
+}
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -55,11 +58,45 @@ function getTailscaleStatus() {
         const authContainer = document.getElementById('auth-container');
         const statusPre = document.getElementById('status');
 
-        // Poll auth_url.txt for the link
+        // Poll auth_url.txt for the auth link
         async function updateAuthLink() {
             try {
                 const response = await fetch('auth_url.txt');
                 const authLink = (await response.text()).trim();
+                if (authLink && authLink.startsWith('https://login.tailscale.com')) {
+                    authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
+                } else {
+                    setTimeout(updateAuthLink, 2000);
+                }
+            } catch (err) {
+                setTimeout(updateAuthLink, 2000);
+            }
+        }
+
+        // Poll Tailscale status every 3 seconds
+        async function updateStatus() {
+            try {
+                const response = await fetch('?ajax_status=1');
+                const newStatus = await response.text();
+                statusPre.textContent = newStatus;
+
+                // If Tailscale shows online, remove auth link
+                if (newStatus.toLowerCase().includes('100%') || newStatus.toLowerCase().includes('active')) {
+                    authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
+                }
+
+                setTimeout(updateStatus, 3000);
+            } catch (err) {
+                setTimeout(updateStatus, 3000);
+            }
+        }
+
+        updateAuthLink();
+        updateStatus();
+    </script>
+</body>
+</html>
+
                 if (authLink && authLink.startsWith('https://login.tailscale.com')) {
                     authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
                 } else {
