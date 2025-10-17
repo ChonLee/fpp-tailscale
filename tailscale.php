@@ -9,7 +9,7 @@ $authFile   = "$pluginDir/auth_url.txt";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['install_tailscale'])) {
         // Run install script in background
-        shell_exec("nohup $pluginDir/fpp-install.sh > $statusFile 2>&1 &");
+        shell_exec("nohup $pluginDir/scripts/fpp-install.sh > $statusFile 2>&1 &");
     } elseif (isset($_POST['start_tailscale'])) {
         shell_exec("sudo tailscale up >> $statusFile 2>&1 &");
     } elseif (isset($_POST['stop_tailscale'])) {
