@@ -21,6 +21,7 @@ if (isset($_GET['ajax_status'])) {
 }
 
 // Handle form submission for install/start/stop/uninstall
+$message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['install_tailscale'])) {
         exec("$plugin_dir/scripts/install.sh 2>&1 > /dev/null &");
@@ -37,89 +38,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>FPP Tailscale Plugin</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        a.button, input[type=submit] {
-            display: inline-block;
-            padding: 10px 20px;
-            font-size: 16px;
-            margin: 5px;
-            text-decoration: none;
-            color: white;
-            background-color: #0073e6;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
+<!-- Plugin content starts here -->
+<h1>FPP Tailscale Plugin</h1>
+<p>This device can connect remotely through Tailscale.</p>
+
+<?php if (!empty($message)) echo "<p><strong>$message</strong></p>"; ?>
+
+<h2>Tailscale Status</h2>
+<pre id="status"><?php echo getTailscaleStatus(); ?></pre>
+
+<h2>Authorize Tailscale</h2>
+<div id="auth-container">
+    <p>Waiting for Tailscale authorization link...</p>
+</div>
+
+<h2>Manage Tailscale</h2>
+<form method="post">
+    <input type="submit" name="install_tailscale" value="Install Tailscale">
+    <input type="submit" name="uninstall_tailscale" value="Uninstall Tailscale"><br>
+    <input type="submit" name="start_tailscale" value="Start Tailscale">
+    <input type="submit" name="stop_tailscale" value="Stop Tailscale">
+</form>
+
+<script>
+const authContainer = document.getElementById('auth-container');
+const statusPre = document.getElementById('status');
+
+// Poll auth_url.txt for the auth link
+async function updateAuthLink() {
+    try {
+        const response = await fetch('auth_url.txt');
+        const authLink = (await response.text()).trim();
+        if (authLink && authLink.startsWith('https://login.tailscale.com')) {
+            authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
+        } else {
+            setTimeout(updateAuthLink, 2000);
         }
-        pre { text-align: left; display: inline-block; padding: 10px; background: #f0f0f0; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <h1>FPP Tailscale Plugin</h1>
-    <p>This device can connect remotely through Tailscale.</p>
+    } catch (err) {
+        setTimeout(updateAuthLink, 2000);
+    }
+}
 
-    <?php if (!empty($message)) echo "<p><strong>$message</strong></p>"; ?>
+// Poll Tailscale status every 3 seconds
+async function updateStatus() {
+    try {
+        const response = await fetch('?ajax_status=1');
+        const newStatus = await response.text();
+        statusPre.textContent = newStatus;
 
-    <h2>Tailscale Status</h2>
-    <pre id="status"><?php echo getTailscaleStatus(); ?></pre>
-
-    <h2>Authorize Tailscale</h2>
-    <div id="auth-container">
-        <p>Waiting for Tailscale authorization link...</p>
-    </div>
-
-    <h2>Manage Tailscale</h2>
-    <form method="post">
-        <input type="submit" name="install_tailscale" value="Install Tailscale">
-        <input type="submit" name="uninstall_tailscale" value="Uninstall Tailscale"><br>
-        <input type="submit" name="start_tailscale" value="Start Tailscale">
-        <input type="submit" name="stop_tailscale" value="Stop Tailscale">
-    </form>
-
-    <script>
-        const authContainer = document.getElementById('auth-container');
-        const statusPre = document.getElementById('status');
-
-        // Poll auth_url.txt for the auth link
-        async function updateAuthLink() {
-            try {
-                const response = await fetch('auth_url.txt');
-                const authLink = (await response.text()).trim();
-                if (authLink && authLink.startsWith('https://login.tailscale.com')) {
-                    authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
-                } else {
-                    setTimeout(updateAuthLink, 2000);
-                }
-            } catch (err) {
-                setTimeout(updateAuthLink, 2000);
-            }
+        if (newStatus.toLowerCase().includes('100%') || newStatus.toLowerCase().includes('active')) {
+            authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
         }
 
-        // Poll Tailscale status every 3 seconds
-        async function updateStatus() {
-            try {
-                const response = await fetch('?ajax_status=1');
-                const newStatus = await response.text();
-                statusPre.textContent = newStatus;
+        setTimeout(updateStatus, 3000);
+    } catch (err) {
+        setTimeout(updateStatus, 3000);
+    }
+}
 
-                // If Tailscale shows online, remove auth link
-                if (newStatus.toLowerCase().includes('100%') || newStatus.toLowerCase().includes('active')) {
-                    authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
-                }
+updateAuthLink();
+updateStatus();
+</script>
 
-                setTimeout(updateStatus, 3000);
-            } catch (err) {
-                setTimeout(updateStatus, 3000);
-            }
-        }
-
-        updateAuthLink();
-        updateStatus();
-    </script>
-</body>
-</html>
+<style>
+body { font-family: sans-serif; text-align: center; padding: 20px; }
+a.button, input[type=submit] {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 16px;
+    margin: 5px;
+    text-decoration: none;
+    color: white;
+    background-color: #0073e6;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+pre { text-align: left; display: inline-block; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+</style>
