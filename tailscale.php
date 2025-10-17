@@ -1,12 +1,11 @@
 <?php
 /*
-Plugin Name: FPP Tailscale
-Description: Fully automatic Tailscale management plugin for FPP.
-Version: 1.1
+FPP Tailscale Plugin
 Author: John Myers
+Description: Manage Tailscale directly from FPP.
 */
 
-$plugin_dir = '/home/fpp/media/plugins/fpp-tailscale';
+$plugin_dir = __DIR__;
 $auth_url_file = $plugin_dir . '/auth_url.txt';
 
 // Function to get Tailscale status
@@ -21,6 +20,22 @@ if (isset($_GET['ajax_status'])) {
     exit;
 }
 
+// Handle form submission for install/start/stop/uninstall
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['install_tailscale'])) {
+        exec("$plugin_dir/scripts/install.sh 2>&1 > /dev/null &");
+        $message = "Installing Tailscale...";
+    } elseif (isset($_POST['uninstall_tailscale'])) {
+        exec("$plugin_dir/scripts/uninstall.sh 2>&1 > /dev/null &");
+        $message = "Uninstalling Tailscale...";
+    } elseif (isset($_POST['start_tailscale'])) {
+        exec('sudo tailscale up 2>&1', $output);
+        $message = "Starting Tailscale...";
+    } elseif (isset($_POST['stop_tailscale'])) {
+        exec('sudo tailscale down 2>&1', $output);
+        $message = "Stopping Tailscale...";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -29,15 +44,17 @@ if (isset($_GET['ajax_status'])) {
     <title>FPP Tailscale Plugin</title>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
-        a.button {
+        a.button, input[type=submit] {
             display: inline-block;
             padding: 10px 20px;
-            font-size: 18px;
+            font-size: 16px;
+            margin: 5px;
             text-decoration: none;
             color: white;
             background-color: #0073e6;
             border-radius: 5px;
-            margin-top: 20px;
+            border: none;
+            cursor: pointer;
         }
         pre { text-align: left; display: inline-block; padding: 10px; background: #f0f0f0; border-radius: 5px; }
     </style>
@@ -46,6 +63,8 @@ if (isset($_GET['ajax_status'])) {
     <h1>FPP Tailscale Plugin</h1>
     <p>This device can connect remotely through Tailscale.</p>
 
+    <?php if (!empty($message)) echo "<p><strong>$message</strong></p>"; ?>
+
     <h2>Tailscale Status</h2>
     <pre id="status"><?php echo getTailscaleStatus(); ?></pre>
 
@@ -53,6 +72,14 @@ if (isset($_GET['ajax_status'])) {
     <div id="auth-container">
         <p>Waiting for Tailscale authorization link...</p>
     </div>
+
+    <h2>Manage Tailscale</h2>
+    <form method="post">
+        <input type="submit" name="install_tailscale" value="Install Tailscale">
+        <input type="submit" name="uninstall_tailscale" value="Uninstall Tailscale"><br>
+        <input type="submit" name="start_tailscale" value="Start Tailscale">
+        <input type="submit" name="stop_tailscale" value="Stop Tailscale">
+    </form>
 
     <script>
         const authContainer = document.getElementById('auth-container');
@@ -82,40 +109,6 @@ if (isset($_GET['ajax_status'])) {
 
                 // If Tailscale shows online, remove auth link
                 if (newStatus.toLowerCase().includes('100%') || newStatus.toLowerCase().includes('active')) {
-                    authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
-                }
-
-                setTimeout(updateStatus, 3000);
-            } catch (err) {
-                setTimeout(updateStatus, 3000);
-            }
-        }
-
-        updateAuthLink();
-        updateStatus();
-    </script>
-</body>
-</html>
-
-                if (authLink && authLink.startsWith('https://login.tailscale.com')) {
-                    authContainer.innerHTML = `<a class="button" href="${authLink}" target="_blank">Click here to authorize Tailscale</a>`;
-                } else {
-                    setTimeout(updateAuthLink, 2000);
-                }
-            } catch (err) {
-                setTimeout(updateAuthLink, 2000);
-            }
-        }
-
-        // Poll Tailscale status every 3 seconds
-        async function updateStatus() {
-            try {
-                const response = await fetch('tailscale_status.php'); // We'll create this next
-                const newStatus = await response.text();
-                statusPre.textContent = newStatus;
-
-                // If status shows device is online, remove auth link
-                if (newStatus.includes('100%') || newStatus.includes('active')) { // Adjust depending on tailscale status output
                     authContainer.innerHTML = "<p>Tailscale is authorized and running!</p>";
                 }
 
