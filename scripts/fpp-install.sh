@@ -1,41 +1,45 @@
 #!/bin/bash
-# fpp-install.sh
-# FPP Tailscale Plugin Install Script
+# fpp-start.sh
+# FPP Tailscale Plugin Start Script
 
 PLUGIN_DIR="/home/fpp/media/plugins/fpp-tailscale"
 AUTH_FILE="$PLUGIN_DIR/auth_url.txt"
 
-echo "Starting FPP Tailscale Plugin installation..."
+echo "Starting Tailscale..."
 
-# 1. Update package lists
-sudo apt-get update -y
-
-# 2. Install Tailscale if not already installed
-if ! command -v tailscale >/dev/null 2>&1; then
-    echo "Installing Tailscale..."
-    curl -fsSL https://tailscale.com/install.sh | sh
-else
-    echo "Tailscale already installed."
-fi
-
-# 3. Ensure plugin directory exists
+# Make sure the plugin directory exists
 mkdir -p "$PLUGIN_DIR"
 
-# 4. Create placeholder auth_url.txt if it doesn't exist
-if [ ! -f "$AUTH_FILE" ]; then
-    echo "Creating placeholder auth_url.txt..."
-    echo "Waiting for authorization link..." > "$AUTH_FILE"
+# Check if Tailscale is installed
+if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Tailscale is not installed. Please run fpp-install.sh first."
+    exit 1
 fi
 
-# 5. Set permissions so FPP can read the file
+# Stop Tailscale if already running
+if tailscale status >/dev/null 2>&1; then
+    echo "Stopping existing Tailscale session..."
+    sudo tailscale down
+fi
+
+# Start Tailscale in up mode and capture the auth URL
+echo "Bringing Tailscale up..."
+# This will output the auth URL if not yet authenticated
+AUTH_URL=$(sudo tailscale up --accept-routes --accept-dns --reset 2>&1 | grep "https://login.tailscale.com")
+
+# If the URL is found, write it to auth_url.txt
+if [ -n "$AUTH_URL" ]; then
+    echo "$AUTH_URL" > "$AUTH_FILE"
+    echo "Authorization URL written to $AUTH_FILE"
+else
+    # If Tailscale is already authenticated, show running status
+    echo "Tailscale is already authorized or running."
+    echo "Tailscale is authorized and running!" > "$AUTH_FILE"
+fi
+
+# Set permissions so FPP web interface can read the file
 chown fpp:fpp "$AUTH_FILE"
 chmod 644 "$AUTH_FILE"
 
-# 6. Provide instructions to user
-echo ""
-echo "Installation complete!"
-echo "To authorize Tailscale, click the 'Authorize Tailscale' button in the plugin page."
-echo "If you have an auth key, you can run:"
-echo "sudo tailscale up --authkey=<YOUR_KEY> > $AUTH_FILE 2>&1 &"
-
+echo "Tailscale start process complete."
 exit 0
