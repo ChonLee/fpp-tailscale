@@ -12,50 +12,27 @@
             "minFPPVersion": "6.0",
             "maxFPPVersion": "6.99",
             "branch": "preV7",
-            "sha": "",
-            "dependencies": {
-                "packages": [
-                    "mpd",
-                    "mpc"
-                ]
-            }
+            "sha": ""
         },
         {
             "minFPPVersion": "7.0",
             "maxFPPVersion": "7.99",
             "branch": "master",
-            "sha": "",
-            "dependencies": {
-                "packages": [
-                    "mpd",
-                    "mpc"
-                ]
-            }
+            "sha": ""
         },
         {
             "minFPPVersion": "8.0",
             "maxFPPVersion": "8.9",
             "branch": "master",
-            "sha": "",
-            "dependencies": {
-                "packages": [
-                    "mpd",
-                    "mpc"
-                ]
-            }
+            "sha": ""
         },
         {
             "minFPPVersion": "9.0",
             "maxFPPVersion": "0",
             "branch": "testingv2",
-            "sha": "",
-            "dependencies": {
-                "packages": [
-                    "mpd",
-                    "mpc"
-                ]
-            }
+            "sha": ""
         }
     ]
 }
+
 
