@@ -6,7 +6,7 @@
  * Called via: plugin.php?plugin=fpp-tailscale&nopage=1&page=api-handler.php&action=...
  */
 
-$PLUGIN_VERSION = "2025.12.11.1"
+$PLUGIN_VERSION = "2025.12.11.1";
 
 header('Content-Type: application/json');
 
