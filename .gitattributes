@@ -1,0 +1,25 @@
+# Enforce Unix-style line endings (LF) for all text files
+# This prevents Windows CRLF line endings from breaking bash scripts
+
+# Default behavior: automatically detect text files and normalize
+* text=auto
+
+# Force LF line endings for shell scripts (CRITICAL for bash)
+*.sh text eol=lf
+
+# Force LF for other code files
+*.php text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+
+# Binary files - don't try to normalize these
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.tar.gz binary

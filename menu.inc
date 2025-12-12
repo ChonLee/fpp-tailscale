@@ -1,4 +1,6 @@
 <?php
+# Tailscale Plugin Menu Configuration
+#
 # $menuEntries is an array of menu entries for this plugin
 # text - menu entry text
 # type - status/content/output/help (main menu area)
@@ -8,21 +10,9 @@
 
 $menuEntries = Array(
 	Array(
-		'text' => 'Tailscale',
-		'type' => 'status',
+		'text' => 'Tailscale VPN',
+		'type' => 'content',
 		'page' => 'tailscale.php',
-		'wrap' => 1
-	),
-	Array(
-		'text' => 'Tailscale - Help',
-		'type' => 'help',
-		'page' => 'help.php',
-		'wrap' => 1
-	),
-	Array(
-		'text' => 'Tailscale - About',
-		'type' => 'help',
-		'page' => 'about.php',
 		'wrap' => 1
 	)
 );
