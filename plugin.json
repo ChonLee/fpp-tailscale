@@ -47,7 +47,7 @@
         {
             "minFPPVersion": "9.0",
             "maxFPPVersion": "0",
-            "branch": "refactor",
+            "branch": "testingv2",
             "sha": "",
             "dependencies": {
                 "packages": [
@@ -58,3 +58,4 @@
         }
     ]
 }
+
