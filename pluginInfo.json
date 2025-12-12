@@ -1,0 +1,30 @@
+{
+  "repoName": "fpp-tailscale",
+  "name": "Tailscale VPN",
+  "author": "John Myers",
+  "description": "Manage Tailscale VPN connections for secure remote access to your FPP device",
+  "homeURL": "https://github.com/ChonLee/fpp-tailscale",
+  "srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
+  "bugURL": "https://github.com/ChonLee/fpp-tailscale/issues",
+  "allowUpdates": 1,
+  "versions": [
+    {
+      "minFPPVersion": "7.0",
+      "maxFPPVersion": "7.99",
+      "branch": "main",
+      "sha": ""
+    },
+    {
+      "minFPPVersion": "8.0",
+      "maxFPPVersion": "8.99",
+      "branch": "main",
+      "sha": ""
+    },
+    {
+      "minFPPVersion": "9.0",
+      "maxFPPVersion": "0",
+      "branch": "main",
+      "sha": ""
+    }
+  ]
+}
