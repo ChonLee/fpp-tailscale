@@ -143,13 +143,13 @@ function getTailscaleStatus() {
             
             $config = readConfig();
             $hostname = $config['hostname'] ?? 'fpp-player';
-            $authResult = execCommand("timeout 3 sudo tailscale up --hostname={$hostname} 2>&1 || true");
+            $authResult = execCommand("timeout 3 sudo tailscale up --hostname=" . escapeshellarg($hostname) . " 2>&1 || true");
             $authUrl = null;
-            
+
             if (preg_match('/https:\/\/login\.tailscale\.com\/[^\s\'"<>]+/', $authResult['output'], $matches)) {
                 $authUrl = $matches[0];
             }
-            
+
             return [
                 'connected' => false,
                 'daemon_running' => true,
@@ -190,14 +190,14 @@ function getTailscaleStatus() {
         $config = readConfig();
         $hostname = $config['hostname'] ?? 'fpp-player';
         
-        $authResult = execCommand("timeout 3 sudo tailscale up --hostname={$hostname} 2>&1 || true");
+        $authResult = execCommand("timeout 3 sudo tailscale up --hostname=" . escapeshellarg($hostname) . " 2>&1 || true");
         $authUrl = null;
-        
+
         // Extract URL from output
         if (preg_match('/https:\/\/login\.tailscale\.com\/[^\s\'"<>]+/', $authResult['output'], $matches)) {
             $authUrl = $matches[0];
         }
-        
+
         return [
             'connected' => false,
             'daemon_running' => true,
