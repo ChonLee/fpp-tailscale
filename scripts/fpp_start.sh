@@ -78,14 +78,14 @@ if [ "$auto_connect" = "true" ] || [ "$auto_connect" = "True" ]; then
     sleep 2
     
     # Build tailscale up command with system hostname
-    UP_CMD="sudo tailscale up --hostname=${hostname}"
-    
+    UP_CMD="sudo tailscale up --hostname=\"${hostname}\""
+
     if [ "$accept_routes" = "true" ] || [ "$accept_routes" = "True" ]; then
         UP_CMD="$UP_CMD --accept-routes"
     fi
-    
+
     # Execute connect
-    if $UP_CMD >> "$LOG_FILE" 2>&1; then
+    if eval "$UP_CMD" >> "$LOG_FILE" 2>&1; then
         log "Auto-connect successful with hostname: ${hostname}"
     else
         log "Auto-connect completed (may need authentication)"
