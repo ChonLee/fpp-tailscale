@@ -15,7 +15,7 @@ log "=== Installing Tailscale Plugin ==="
 
 # Create log file
 touch "$LOG_FILE"
-chmod 666 "$LOG_FILE"
+chmod 644 "$LOG_FILE"
 
 # Check if already installed
 if command -v tailscale &> /dev/null; then
@@ -54,7 +54,7 @@ accept_routes = false
 advertise_exit = false
 hostname = ${SYSTEM_HOSTNAME}
 EOF
-    chmod 666 "$CONFIG_FILE"
+    chmod 644 "$CONFIG_FILE"
     log "Default configuration created with hostname: ${SYSTEM_HOSTNAME}"
 else
     log "Configuration file already exists, preserving settings"
