@@ -79,31 +79,46 @@ function readConfig() {
  */
 function writeConfig($config) {
     global $CONFIG_FILE, $CONFIG_DIR;
-    
+
+    // Whitelist of allowed keys with their types
+    $allowedKeys = [
+        'auto_connect'   => 'bool',
+        'accept_routes'  => 'bool',
+        'advertise_exit' => 'bool',
+        'hostname'       => 'string',
+    ];
+
     // Ensure directory exists
     if (!is_dir($CONFIG_DIR)) {
-        mkdir($CONFIG_DIR, 0777, true);
+        mkdir($CONFIG_DIR, 0755, true);
     }
-    
+
     $iniContent = "; Tailscale Plugin Configuration\n";
     $iniContent .= "; Generated: " . date('Y-m-d H:i:s') . "\n\n";
-    
-    foreach ($config as $key => $value) {
-        // Convert boolean to string
-        if (is_bool($value)) {
-            $value = $value ? 'true' : 'false';
+
+    foreach ($allowedKeys as $key => $type) {
+        if (!array_key_exists($key, $config)) {
+            continue;
         }
+        $value = $config[$key];
+
+        if ($type === 'bool') {
+            $value = ($value === true || $value === 'true' || $value === '1') ? 'true' : 'false';
+        } else {
+            // Strip newlines and carriage returns to prevent INI injection
+            $value = str_replace(["\n", "\r"], '', (string)$value);
+        }
+
         $iniContent .= "$key = $value\n";
     }
-    
+
     // Write the file
     $result = @file_put_contents($CONFIG_FILE, $iniContent);
-    
-    // Set proper permissions if file was created
+
     if ($result !== false && file_exists($CONFIG_FILE)) {
-        @chmod($CONFIG_FILE, 0666);
+        @chmod($CONFIG_FILE, 0644);
     }
-    
+
     return $result !== false;
 }
 
@@ -301,14 +316,23 @@ try {
             error_log("Tailscale saveConfig - Parsed: " . print_r($input, true));
             error_log("Tailscale saveConfig - Config file: " . $CONFIG_FILE);
             
-            if (!$input) {
+            if (!$input || !is_array($input)) {
                 echo json_encode([
                     'success' => false,
                     'message' => 'Invalid JSON input'
                 ]);
                 break;
             }
-            
+
+            // Validate hostname: alphanumeric, hyphens, dots only
+            if (!empty($input['hostname']) && !preg_match('/^[a-zA-Z0-9\-\.]{1,63}$/', $input['hostname'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Invalid hostname: use only letters, numbers, hyphens, and dots'
+                ]);
+                break;
+            }
+
             // Ensure config file is writable
             if (file_exists($CONFIG_FILE) && !is_writable($CONFIG_FILE)) {
                 echo json_encode([
