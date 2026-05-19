@@ -111,6 +111,7 @@
             border-radius: 4px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
+            white-space: pre-wrap;
             max-height: 300px;
             overflow-y: auto;
             margin: 15px 0;
