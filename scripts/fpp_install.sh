@@ -72,17 +72,33 @@ fi
 log "Starting tailscaled daemon..."
 
 start_tailscaled_manually() {
-    sudo tailscaled --state=/var/lib/tailscale/tailscaled.state \
+    # Try normal mode first
+    log "Attempting tailscaled with tun networking..."
+    tailscaled --state=/var/lib/tailscale/tailscaled.state \
         --socket=/var/run/tailscale/tailscaled.sock \
-        > /dev/null 2>&1 &
+        >> "$LOG_FILE" 2>&1 &
     sleep 3
+
     if pgrep -x "tailscaled" > /dev/null; then
-        log "✓ Tailscaled started manually"
+        log "✓ Tailscaled started (tun mode)"
         return 0
-    else
-        log "ERROR: Could not start tailscaled"
-        return 1
     fi
+
+    # Tun device likely unavailable in this container — try userspace networking
+    log "Tun mode failed, trying userspace networking mode..."
+    tailscaled --tun=userspace-networking \
+        --state=/var/lib/tailscale/tailscaled.state \
+        --socket=/var/run/tailscale/tailscaled.sock \
+        >> "$LOG_FILE" 2>&1 &
+    sleep 3
+
+    if pgrep -x "tailscaled" > /dev/null; then
+        log "✓ Tailscaled started (userspace networking mode)"
+        return 0
+    fi
+
+    log "ERROR: Could not start tailscaled - check log for details"
+    return 1
 }
 
 # Check if systemd is actually running before trying systemctl
