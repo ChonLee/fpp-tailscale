@@ -311,11 +311,6 @@ try {
             $rawInput = file_get_contents('php://input');
             $input = json_decode($rawInput, true);
             
-            // Debug logging
-            error_log("Tailscale saveConfig - Raw input: " . substr($rawInput, 0, 200));
-            error_log("Tailscale saveConfig - Parsed: " . print_r($input, true));
-            error_log("Tailscale saveConfig - Config file: " . $CONFIG_FILE);
-            
             if (!$input || !is_array($input)) {
                 echo json_encode([
                     'success' => false,
