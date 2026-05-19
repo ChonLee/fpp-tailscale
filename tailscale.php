@@ -19,14 +19,17 @@
             border-radius: 4px;
             border-left: 4px solid #2196F3;
             background-color: #E3F2FD;
+            color: #333;
         }
         .status-box.connected {
             border-left-color: #4CAF50;
             background-color: #E8F5E9;
+            color: #333;
         }
         .status-box.disconnected {
             border-left-color: #F44336;
             background-color: #FFEBEE;
+            color: #333;
         }
         .button {
             background-color: #4CAF50;
@@ -88,6 +91,7 @@
         }
         .auth-url {
             background-color: #FFF9C4;
+            color: #333;
             padding: 15px;
             border-radius: 4px;
             margin: 15px 0;
