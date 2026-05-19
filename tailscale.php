@@ -166,9 +166,8 @@
                 </div>
                 
                 <div id="auth-url-box" class="auth-url" style="display:none;">
-                    <strong>⚠️ Authentication Required</strong>
-                    <p>Please authenticate your device by clicking the link below:</p>
-                    <a id="auth-url-link" href="#" target="_blank">Authenticate with Tailscale</a>
+                    <p>Click the link below to authenticate this device with your Tailscale account:</p>
+                    <a id="auth-url-link" href="#" target="_blank" style="word-break:break-all;">Open Tailscale Authentication</a>
                 </div>
                 
                 <div>
@@ -221,8 +220,8 @@
     </div>
 
     <script>
-        // Build the correct API path for this plugin
         var apiBase = 'plugin.php?plugin=fpp-tailscale&nopage=1&page=api-handler.php';
+        var cachedAuthUrl = null;
         
         // Load status on page load
         jQuery(document).ready(function($) {
@@ -296,10 +295,12 @@
                 
                 if (data.success) {
                     const status = data.status;
-                    
+
                     if (status.connected) {
+                        // Successfully connected — clear any cached auth URL
+                        cachedAuthUrl = null;
                         jQuery('#status-box').removeClass('disconnected').addClass('connected');
-                        jQuery('#status-text').html('<strong>✓ Connected to Tailscale</strong>');
+                        jQuery('#status-text').html('<strong>Connected to Tailscale</strong>');
                         jQuery('#connection-info').show();
                         jQuery('#tailscale-ip').text(status.ip || 'N/A');
                         jQuery('#hostname').text(status.hostname || 'N/A');
@@ -313,20 +314,24 @@
                         jQuery('#status-box').removeClass('connected').addClass('disconnected');
                         jQuery('#connection-info').hide();
                         jQuery('#btn-disconnect').hide();
-                        
-                        // Check if we need authentication (auth_url present)
+
+                        // Cache auth URL when received so it survives auto-refreshes
                         if (status.auth_url) {
-                            jQuery('#status-text').html('<strong>✗ Authentication Required</strong><br><small>' + (status.status || 'Not logged in') + '</small>');
-                            jQuery('#btn-authenticate').show();
-                            jQuery('#btn-connect').hide();
-                            jQuery('#btn-reauth').hide();
+                            cachedAuthUrl = status.auth_url;
+                        }
+
+                        if (cachedAuthUrl) {
+                            jQuery('#status-text').html('<strong>Authentication Required</strong><br><small>Authenticate to connect this device to your Tailscale network</small>');
+                            jQuery('#auth-url-link').attr('href', cachedAuthUrl);
                             jQuery('#auth-url-box').show();
-                            jQuery('#auth-url-link').attr('href', status.auth_url).text(status.auth_url);
+                            jQuery('#btn-authenticate').hide();
+                            jQuery('#btn-connect').hide();
+                            jQuery('#btn-reauth').show();
                         } else {
-                            jQuery('#status-text').html('<strong>✗ Disconnected from Tailscale</strong><br><small>' + (status.status || 'Ready to connect') + '</small>');
+                            jQuery('#status-text').html('<strong>Disconnected</strong><br><small>' + (status.status || 'Ready to connect') + '</small>');
                             jQuery('#btn-authenticate').hide();
                             jQuery('#btn-connect').show();
-                            jQuery('#btn-reauth').show(); // Show re-auth option
+                            jQuery('#btn-reauth').show();
                             jQuery('#auth-url-box').hide();
                         }
                     }
@@ -347,24 +352,12 @@
             jQuery('#status-text').html('Generating authentication URL...');
             jQuery.post(apiBase + '&action=connect', function(data) {
                 if (data.auth_url) {
-                    // Show the auth URL
-                    jQuery('#status-text').html('<strong>✗ Authentication Required</strong>');
+                    cachedAuthUrl = data.auth_url;
+                    jQuery('#auth-url-link').attr('href', cachedAuthUrl);
                     jQuery('#auth-url-box').show();
-                    jQuery('#auth-url-link').attr('href', data.auth_url).text(data.auth_url);
-                    
-                    // Open in new window
-                    window.open(data.auth_url, '_blank');
-                    
-                    // Poll for status after authentication
-                    alert('Opening Tailscale authentication in new window.\n\nAfter authenticating, click "Refresh Status" or wait a moment.');
-                    
-                    // Auto-refresh after 10 seconds to check if authenticated
-                    setTimeout(function() {
-                        refreshStatus();
-                    }, 10000);
+                    window.open(cachedAuthUrl, '_blank');
+                    setTimeout(refreshStatus, 10000);
                 } else if (data.success) {
-                    // Already authenticated, just connected
-                    alert('Already authenticated! Connecting...');
                     setTimeout(refreshStatus, 2000);
                 } else {
                     alert('Error: ' + data.message);
