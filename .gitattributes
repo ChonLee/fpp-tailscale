@@ -17,6 +17,7 @@
 
 # Binary files - don't try to normalize these
 *.png binary
+*.gpg binary
 *.jpg binary
 *.jpeg binary
 *.gif binary

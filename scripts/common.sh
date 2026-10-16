@@ -25,6 +25,14 @@ LOG_DIR="$LOGDIR"
 # FPP's naming for plugin logs: plugin-<repoName>.log
 LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
 UP_PIDFILE="/run/fpp-tailscale-up.pid"
+
+# Tailscale's apt source. The list keeps the name Tailscale's own updater
+# (`tailscale update`, automatic updates) reads and edits.
+APT_LIST="/etc/apt/sources.list.d/tailscale.list"
+APT_KEYRING="/etc/apt/keyrings/tailscale-archive-keyring.gpg"
+APT_PIN="/etc/apt/preferences.d/tailscale"
+# Written by tailscale.com/install.sh, which older plugin versions ran.
+LEGACY_APT_KEYRING="/usr/share/keyrings/tailscale-archive-keyring.gpg"
 TS_DEFAULTS="/etc/default/tailscaled"
 # Turns off tailscaled's diagnostic log upload to log.tailscale.com, as declared
 # in pluginInfo.json's privacy block.
@@ -88,21 +96,84 @@ ts_installed() {
     command -v tailscale >/dev/null 2>&1 && command -v tailscaled >/dev/null 2>&1
 }
 
-# Install Tailscale if it's missing (first install, or an FPPOS upgrade wiped it).
+# Add Tailscale's apt source, as FPP's plugin guidelines (§14.14) require: the
+# signing key ships with the plugin (apt/, fingerprint
+# 2596 A99E AAB3 3821 893C  0A79 458C A832 957F 5868, the same for every
+# Debian and Raspbian release), and a pin lets the source supply only the
+# tailscale package. Safe to run again; it also replaces the source that
+# tailscale.com/install.sh set up for older plugin versions.
+setup_apt_source() {
+    local id codename
+    id=$(. /etc/os-release && echo "$ID")
+    codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+    case "$id" in
+        debian|raspbian|ubuntu) ;;
+        *) log "ERROR: Tailscale has no apt packages for this OS ($id)"; return 1 ;;
+    esac
+    if [ -z "$codename" ]; then
+        log "ERROR: can't tell which $id release this is"
+        return 1
+    fi
+    $SUDO mkdir -p "$(dirname "$APT_KEYRING")"
+    $SUDO install -m 644 "$PLUGIN_DIR/apt/tailscale-archive-keyring.gpg" "$APT_KEYRING" || return 1
+    printf '# Added by the fpp-tailscale plugin.\ndeb [signed-by=%s] https://pkgs.tailscale.com/stable/%s %s main\n' \
+        "$APT_KEYRING" "$id" "$codename" | $SUDO tee "$APT_LIST" >/dev/null || return 1
+    $SUDO tee "$APT_PIN" >/dev/null <<'EOF' || return 1
+# Added by the fpp-tailscale plugin: pkgs.tailscale.com may supply the
+# tailscale package and nothing else.
+Package: *
+Pin: origin pkgs.tailscale.com
+Pin-Priority: -1
+
+Package: tailscale
+Pin: origin pkgs.tailscale.com
+Pin-Priority: 500
+EOF
+    # tailscale.com/install.sh also installed this package for its own copy of
+    # the key. Ours replaces it.
+    if dpkg -s tailscale-archive-keyring >/dev/null 2>&1; then
+        $SUDO apt-get purge -y tailscale-archive-keyring >> "$LOG_FILE" 2>&1
+    fi
+    $SUDO rm -f "$LEGACY_APT_KEYRING"
+}
+
+# Switch an install made by an older plugin version (via tailscale.com/
+# install.sh) to the plugin's own apt source. Leaves a Tailscale that was
+# installed before the plugin alone.
+migrate_apt_source() {
+    [ -f "$PREINSTALLED_MARKER" ] && return 0
+    ts_installed || return 0
+    grep -q "$APT_KEYRING" "$APT_LIST" 2>/dev/null && [ -f "$APT_PIN" ] && return 0
+    log "Switching Tailscale to the plugin's apt source"
+    setup_apt_source
+}
+
+# Install Tailscale if it's missing (first install, or an FPP OS upgrade wiped
+# it). It isn't declared in pluginInfo.json's dependencies because it isn't in
+# Debian: it comes from Tailscale's own apt source, which the plugin adds
+# (guidelines §6.2). The package's own install script starts tailscaled; a
+# runtime mask stops that, since only Connect (or auto-connect) may start it
+# (§4.4). The mask goes away on unmask or reboot.
 ensure_installed() {
     ts_installed && return 0
-    log "Tailscale not found, installing from tailscale.com..."
-    local script
-    script=$(mktemp) || return 1
-    if curl -fsSL --retry 3 -o "$script" https://tailscale.com/install.sh \
-        && $SUDO sh "$script" >> "$LOG_FILE" 2>&1; then
-        rm -f "$script"
-        log "Tailscale installed: $(tailscale version 2>/dev/null | head -n1)"
-        return 0
+    log "Tailscale not found, installing it from pkgs.tailscale.com..."
+    setup_apt_source || return 1
+    local masked="" rc
+    if [ -d /run/systemd/system ] && $SUDO systemctl mask --runtime tailscaled >/dev/null 2>&1; then
+        masked=1
     fi
-    rm -f "$script"
-    log "ERROR: failed to install Tailscale"
-    return 1
+    # A full update, not just Tailscale's source: the package needs Debian
+    # packages too (nftables), and an image's Debian lists may be out of date.
+    $SUDO apt-get update >> "$LOG_FILE" 2>&1 \
+        && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale >> "$LOG_FILE" 2>&1
+    rc=$?
+    [ -n "$masked" ] && $SUDO systemctl unmask --runtime tailscaled >/dev/null 2>&1
+    if [ "$rc" -ne 0 ] || ! ts_installed; then
+        log "ERROR: failed to install Tailscale"
+        return 1
+    fi
+    disable_log_upload >/dev/null
+    log "Tailscale installed: $(tailscale version 2>/dev/null | head -n1)"
 }
 
 # Succeeds once tailscaled answers on its socket.

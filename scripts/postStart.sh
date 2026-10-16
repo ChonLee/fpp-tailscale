@@ -8,22 +8,25 @@
 
 (
     log "=== FPP started, checking Tailscale ==="
+    migrate_apt_source
 
-    # The curl reinstall and `tailscale up` need the network.
+    # Without auto-connect, leave Tailscale alone: if it was connected before,
+    # its own service brings that back.
+    if ! cfg_true auto_connect; then
+        log "Auto-connect disabled"
+        exit 0
+    fi
+    log "Auto-connect enabled"
+
+    # Reinstalling (after an FPP OS update removed Tailscale) and
+    # `tailscale up` need the network.
     for _ in $(seq 1 60); do
         ip route show default 2>/dev/null | grep -q . && break
         sleep 1
     done
 
     ensure_installed || exit 1
-    ensure_tailscaled || exit 1
-
-    if cfg_true auto_connect; then
-        log "Auto-connect enabled"
-        /bin/bash "$PLUGIN_DIR/scripts/ts-ctl.sh" up
-    else
-        log "Auto-connect disabled"
-    fi
+    /bin/bash "$PLUGIN_DIR/scripts/ts-ctl.sh" up
 ) < /dev/null >> "$LOG_FILE" 2>&1 &
 
 exit 0

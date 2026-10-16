@@ -2,7 +2,7 @@
   "repoName": "fpp-tailscale",
   "name": "Tailscale VPN",
   "author": "John Myers",
-  "description": "Manage Tailscale VPN connections for secure remote access to your FPP device",
+  "description": "Connects FPP to your Tailscale network so your own devices can reach it securely from anywhere. Sign-in and connections go through Tailscale's servers (controlplane.tailscale.com, and derp*.tailscale.com relays), and Tailscale is installed from its own apt source, pkgs.tailscale.com.",
   "homeURL": "https://github.com/ChonLee/fpp-tailscale",
   "iconURL": "https://raw.githubusercontent.com/ChonLee/fpp-tailscale/main/icon.png",
   "srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
@@ -29,6 +29,12 @@
         "what": "network traffic, encrypted",
         "why": "to reach your devices when a direct connection isn't possible",
         "alwaysOn": false
+      },
+      {
+        "to": "pkgs.tailscale.com",
+        "what": "requests to download the Tailscale package",
+        "why": "to install Tailscale, and to update it if you turn on automatic updates",
+        "alwaysOn": false
       }
     ],
     "collects": [
@@ -51,16 +57,12 @@
     "remoteAccess": "tunnel",
     "systemChanges": [
       {
-        "kind": "download",
-        "what": "installs Tailscale from tailscale.com and reinstalls it if an FPP OS update removed it. With automatic updates on, Tailscale also updates itself"
-      },
-      {
         "kind": "package-source",
-        "what": "adds Tailscale's apt package source and signing key"
+        "what": "adds Tailscale's apt source (pkgs.tailscale.com) and signing key, pinned so it can only supply the tailscale package"
       },
       {
         "kind": "service",
-        "what": "enables and runs Tailscale's background service (tailscaled), with its diagnostic log upload turned off"
+        "what": "runs Tailscale's background service (tailscaled) once you click Connect, with its diagnostic log upload turned off"
       },
       {
         "kind": "tunnel",
@@ -72,7 +74,7 @@
       }
     ],
     "closedCode": false,
-    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Automatic updates, if you turn them on, come from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source, unless Tailscale was installed before the plugin: then it's left as it was."
+    "other": "Nothing connects to Tailscale until you click Connect or turn on auto-connect. Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. If an FPP OS update removes Tailscale, auto-connect reinstalls it from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package, its apt source, signing key and pin, unless Tailscale was installed before the plugin: then it's left as it was."
   },
   "versions": [
     {

@@ -31,11 +31,12 @@ else
     $SUDO rm -rf /var/cache/tailscale
 
     if command -v apt-get >/dev/null 2>&1; then
-        log "Removing the Tailscale package..."
+        log "Removing the Tailscale package and its apt source..."
         $SUDO apt-get purge -y tailscale >> "$LOG_FILE" 2>&1
-        # Apt source and key added by tailscale.com/install.sh
-        $SUDO rm -f /etc/apt/sources.list.d/tailscale.list \
-            /usr/share/keyrings/tailscale-archive-keyring.gpg
+        if dpkg -s tailscale-archive-keyring >/dev/null 2>&1; then
+            $SUDO apt-get purge -y tailscale-archive-keyring >> "$LOG_FILE" 2>&1
+        fi
+        $SUDO rm -f "$APT_LIST" "$APT_KEYRING" "$APT_PIN" "$LEGACY_APT_KEYRING"
     fi
 
     # FPP's own network settings for tailscale0, if any were saved on its

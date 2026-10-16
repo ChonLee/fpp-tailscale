@@ -26,7 +26,7 @@ Works on FPP 7.x through 10.x.
    `https://raw.githubusercontent.com/ChonLee/fpp-tailscale/main/pluginInfo.json`
 4. Click **Install**.
 
-The install script downloads Tailscale from tailscale.com, so the FPP device needs internet access.
+The install script installs Tailscale from Tailscale's own apt source, pkgs.tailscale.com, so the FPP device needs internet access. The plugin adds that source with Tailscale's signing key (shipped in `apt/`), and pins it so it can only supply the `tailscale` package. Tailscale stays stopped until you click **Connect**.
 
 ### Manual Installation
 
@@ -41,7 +41,7 @@ sudo fpp-tailscale/scripts/fpp_install.sh
 ### First-time setup
 
 1. Open **Content Setup** → **Tailscale VPN**.
-2. Click **Connect**. A login link appears within a few seconds.
+2. Click **Connect**. This starts Tailscale, and a login link appears within a few seconds.
 3. Open the link and sign in to your Tailscale account.
 4. The page switches to **Connected** by itself and shows the device's Tailscale IP.
 
@@ -100,11 +100,11 @@ hostname = "my-fpp-display"
 - **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it.
 - **Daemon log:** `sudo journalctl -u tailscaled -n 50`
 - **Page won't load:** `sudo tail /var/log/apache2/error.log`
-- **After an FPP OS upgrade:** if the upgrade removed Tailscale, the plugin reinstalls it the next time FPP starts.
+- **After an FPP OS upgrade:** if the upgrade removed Tailscale and auto-connect is on, the plugin reinstalls it the next time FPP starts. Otherwise, reinstall the plugin from the Plugin Manager.
 
 ## Uninstallation
 
-Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, removes any tailscale0 settings saved on FPP's Network page (FPP 10 and later), and deletes the plugin's config, data and log.
+Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, signing key and pin, removes any tailscale0 settings saved on FPP's Network page (FPP 10 and later), and deletes the plugin's config, data and log.
 
 If Tailscale was already installed before you installed the plugin, uninstalling leaves Tailscale installed, running and signed in. Only the plugin's own files are removed.
 
@@ -120,6 +120,8 @@ fpp-tailscale/
 │   ├── postStart.sh       # FPP boot hook (backgrounds its work)
 │   ├── fpp_install.sh     # Install; FPP 10 re-runs it on every plugin update
 │   └── fpp_uninstall.sh   # Uninstall
+├── apt/
+│   └── tailscale-archive-keyring.gpg  # Tailscale's apt signing key (fingerprint 2596 A99E AAB3 3821 893C 0A79 458C A832 957F 5868)
 ├── api-handler.php        # JSON API used by the page
 ├── lan-routes.php         # Refuses subnet routes that overlap this FPP's own LAN
 ├── tailscale.php          # UI (an HTML fragment inside FPP's page)

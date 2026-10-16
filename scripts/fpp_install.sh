@@ -3,6 +3,9 @@
 # FPP install script for the Tailscale plugin. FPP 10 also re-runs this after
 # every plugin update, so a re-run must be quick and change nothing.
 #
+# It installs Tailscale but doesn't start it: nothing connects to Tailscale
+# until the user clicks Connect (or turns on auto-connect).
+#
 
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/common.sh"
 LOG_ECHO=1
@@ -36,9 +39,9 @@ fi
 chmod 644 "$CONFIG_FILE"
 id fpp >/dev/null 2>&1 && chown fpp:fpp "$CONFIG_FILE"
 
+migrate_apt_source
 ensure_installed || exit 1
-ensure_tailscaled || exit 1
 
-log "Tailscale $(tailscale version 2>/dev/null | head -n1) is running"
+log "Tailscale $(tailscale version 2>/dev/null | head -n1) is installed"
 log "=== Install complete. Open Content Setup -> Tailscale VPN to connect ==="
 exit 0

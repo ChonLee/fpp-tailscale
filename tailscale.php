@@ -137,8 +137,8 @@
         needs_approval: { cls: 'ts-warn',   title: 'Waiting for approval', text: 'Approve this device in the Tailscale admin console.', buttons: ['reauth'], fast: true },
         disconnected:   { cls: 'ts-muted', title: 'Disconnected', text: 'Logged in to Tailscale but not connected.', buttons: ['connect', 'reauth'] },
         starting:       { cls: 'ts-info',      title: 'Connecting...', buttons: ['reauth'], fast: true },
-        daemon_down:    { cls: 'ts-error',    title: 'The Tailscale service is not running', text: 'Connect will try to start it.', buttons: ['connect'] },
-        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin, or restart FPP to let it reinstall Tailscale.', buttons: [] }
+        daemon_down:    { cls: 'ts-muted',    title: 'Tailscale is not running', text: 'Click Connect to start it and sign in.', buttons: ['connect'] },
+        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin from the Plugin Manager to install it.', buttons: [] }
     };
 
     var pollTimer = null;
