@@ -141,6 +141,8 @@
         not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin from the Plugin Manager to install it.', buttons: [] }
     };
 
+    // api-handler.php refuses POSTs without it (cross-site request forgery).
+    var POST_HEADERS = { 'X-Requested-With': 'XMLHttpRequest' };
     var pollTimer = null;
     var lastState = null;
     var busy = false;
@@ -225,7 +227,7 @@
         }
         setBusy(true, workingText);
         var message = '';
-        $.ajax({ url: API + action, method: 'POST', dataType: 'json' })
+        $.ajax({ url: API + action, method: 'POST', headers: POST_HEADERS, dataType: 'json' })
             .done(function (data) { render(data.status); })
             .fail(function (xhr) {
                 message = errorText(xhr);
@@ -244,6 +246,7 @@
         $.ajax({
             url: API + 'saveConfig',
             method: 'POST',
+            headers: POST_HEADERS,
             contentType: 'application/json',
             data: JSON.stringify(fields),
             dataType: 'json'
@@ -318,6 +321,7 @@
             $.ajax({
                 url: API + 'autoUpdate',
                 method: 'POST',
+                headers: POST_HEADERS,
                 contentType: 'application/json',
                 data: JSON.stringify({ enabled: enabled }),
                 dataType: 'json'

@@ -14,6 +14,13 @@ define('TS_CONFIG_FILE', rtrim(isset($settings['configDirectory']) ? $settings['
 define('TS_LOG_FILE', rtrim(isset($settings['logDirectory']) ? $settings['logDirectory'] : '/home/fpp/media/logs', '/')
     . '/plugin-fpp-tailscale.log');
 define('TS_CTL', __DIR__ . '/scripts/ts-ctl.sh');
+// Serializes saveConfig's read-modify-write, so two quick changes can't undo
+// each other. In the plugin's data directory (FPP's plugindata/).
+define('TS_CONFIG_LOCK', rtrim(isset($settings['mediaDirectory']) ? $settings['mediaDirectory'] : '/home/fpp/media', '/')
+    . '/plugindata/fpp-tailscale/config.lock');
+// A stuck tailscaled must not hold a web server worker: every tailscale call
+// here gives up after 10 seconds.
+define('TS_TIMEOUT', 'timeout 10 ');
 
 require_once __DIR__ . '/lan-routes.php';
 
@@ -96,9 +103,9 @@ function tsDecodeStatus($out)
  */
 function tsStatusJson($bin, &$error)
 {
-    $json = tsDecodeStatus(tsRun(escapeshellarg($bin) . ' status --json 2>/dev/null'));
+    $json = tsDecodeStatus(tsRun(TS_TIMEOUT . escapeshellarg($bin) . ' status --json 2>/dev/null'));
     if ($json === null) {
-        $out = tsRun('sudo -n ' . escapeshellarg($bin) . ' status --json 2>&1');
+        $out = tsRun('sudo -n ' . TS_TIMEOUT . escapeshellarg($bin) . ' status --json 2>&1');
         $json = tsDecodeStatus($out);
         if ($json === null) {
             $lines = explode("\n", trim($out));
@@ -118,7 +125,7 @@ function tsAutoUpdate()
         return null;
     }
     foreach (array('', 'sudo -n ') as $prefix) {
-        $prefs = json_decode(tsRun($prefix . escapeshellarg($bin) . ' debug prefs 2>/dev/null'), true);
+        $prefs = json_decode(tsRun($prefix . TS_TIMEOUT . escapeshellarg($bin) . ' debug prefs 2>/dev/null'), true);
         if (is_array($prefs) && isset($prefs['AutoUpdate']) && is_array($prefs['AutoUpdate'])) {
             return !empty($prefs['AutoUpdate']['Apply']);
         }
@@ -234,6 +241,13 @@ if (!isset($routes[$action])) {
 if ($method !== $routes[$action]) {
     tsRespond(405, array('success' => false, 'message' => "Use $routes[$action] for $action"));
 }
+// Cross-site request forgery: a page on another site can make a visitor's
+// browser send a plain POST here, but it can't add this header without a CORS
+// preflight, which FPP doesn't answer for plugin pages. jQuery adds it to the
+// plugin page's own (same-origin) requests.
+if ($method === 'POST' && (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || $_SERVER['HTTP_X_REQUESTED_WITH'] !== 'XMLHttpRequest')) {
+    tsRespond(403, array('success' => false, 'message' => 'Missing X-Requested-With: XMLHttpRequest header'));
+}
 
 switch ($action) {
     case 'state':
@@ -279,6 +293,16 @@ switch ($action) {
             tsRespond(400, array('success' => false, 'message' => 'Invalid JSON input'));
         }
 
+        // Held until the response is sent (tsRespond exits; PHP then releases it).
+        $lockDir = dirname(TS_CONFIG_LOCK);
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0755, true);
+        }
+        $lock = @fopen(TS_CONFIG_LOCK, 'c');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            tsRespond(500, array('success' => false, 'message' => 'Could not lock ' . TS_CONFIG_LOCK));
+        }
+
         $cfg = tsReadConfig();
         foreach (array('auto_connect', 'accept_routes') as $key) {
             if (array_key_exists($key, $input)) {
@@ -287,16 +311,26 @@ switch ($action) {
         }
 
         // Refuse routes that cover this FPP's own LAN: accepting them cuts the
-        // FPP off from its local network. ts-ctl.sh checks again on every
-        // connect, since the routes are only known once connected.
+        // FPP off from its local network. While connected the routes are known,
+        // so check now, and refuse if the check can't be done. When not
+        // connected, ts-ctl.sh checks (the same way) once it is.
         if (!empty($input['accept_routes']) && $cfg['accept_routes'] && tsBin() !== null) {
-            $conflicts = tsRouteConflicts(tsStatusJson(tsBin(), $error));
-            if ($conflicts) {
-                tsRespond(409, array(
-                    'success' => false,
-                    'message' => 'Not turned on: ' . implode('; ', $conflicts)
-                        . '. Accepting that route would cut this FPP off from your local network.',
-                ));
+            $json = tsStatusJson(tsBin(), $error);
+            if (is_array($json) && isset($json['BackendState']) && $json['BackendState'] === 'Running') {
+                list($conflicts, $checkError) = tsRouteCheck($json);
+                if ($checkError !== null) {
+                    tsRespond(409, array(
+                        'success' => false,
+                        'message' => 'Not turned on: ' . $checkError . ', so the plugin couldn\'t check that accepting routes is safe.',
+                    ));
+                }
+                if ($conflicts) {
+                    tsRespond(409, array(
+                        'success' => false,
+                        'message' => 'Not turned on: ' . implode('; ', $conflicts)
+                            . '. Accepting that route would cut this FPP off from your local network.',
+                    ));
+                }
             }
         }
         if (array_key_exists('hostname', $input)) {

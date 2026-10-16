@@ -37,10 +37,10 @@ up_worker() {
 
 # login_up HOSTNAME - sign in. Without --reset, `tailscale up` refuses to run
 # while settings made outside the plugin differ from their defaults, and prints
-# the command that keeps them. Run that instead, falling back to --reset only
-# if it can't be passed on safely.
+# the command that keeps them. Run that instead (each argument passed as is, no
+# shell); if it can't be read, stop with an error rather than reset them.
 login_up() {
-    local out line rc
+    local out line rc flags
     local -a args=(up "--hostname=$1" --accept-routes=false) keep
     out=$(mktemp) || return
     log "Running: tailscale ${args[*]}"
@@ -48,51 +48,68 @@ login_up() {
     rc=${PIPESTATUS[0]}
     if [ "$rc" -ne 0 ] && grep -q 'requires mentioning all' "$out"; then
         line=$(sed -n 's/^[[:space:]]*tailscale up //p' "$out" | head -n 1)
-        read -r -a keep <<< "$line"
-        if [ "${#keep[@]}" -gt 0 ] && plain_flags "${keep[@]}"; then
+        if flags=$(split_flags "$line"); then
+            mapfile -t keep <<< "$flags"
             log "Keeping Tailscale settings made outside the plugin. Running: tailscale up ${keep[*]}"
             timeout --foreground 600 tailscale up "${keep[@]}" 2>&1 | redact
             rc=${PIPESTATUS[0]}
         else
-            log "WARNING: resetting Tailscale settings made outside the plugin. Running: tailscale ${args[*]} --reset"
-            timeout --foreground 600 tailscale "${args[@]}" --reset 2>&1 | redact
-            rc=${PIPESTATUS[0]}
+            # Never fall back to --reset: that would drop those settings.
+            log "ERROR: not signing in. Tailscale has settings made outside the plugin that must be repeated to sign in, and the plugin couldn't read them. To keep them, run once from a shell: tailscale up $line"
+            log "To drop them instead, run: tailscale up --reset"
+            rc=1
         fi
     fi
     rm -f "$out"
     return "$rc"
 }
 
-# Succeeds if every argument is a bare --flag or --flag=value. Tailscale quotes
-# unusual values for a shell, and those can't be passed on as-is.
-plain_flags() {
-    local a
-    for a in "$@"; do
-        [[ "$a" =~ ^--[a-z0-9-]+(=[A-Za-z0-9:.,/@_+-]*)?$ ]] || return 1
-    done
-}
-
 # Subnet routes are only turned on once connected: the routes the tailnet
 # advertises aren't known until then, and one that covers this FPP's own LAN
 # would cut it off from its local network.
+# Fails closed: routes stay off unless the check ran and found no overlap.
 apply_routes() {
     cfg_true accept_routes || return 0
-    local conflicts
-    if conflicts=$(php "$PLUGIN_DIR/lan-routes.php"); then
-        log "Running: tailscale set --accept-routes"
-        tailscale set --accept-routes
-    else
-        log "WARNING: not accepting subnet routes, because accepting them would cut this FPP off from its local network:"
-        log "$conflicts"
-    fi
+    local out rc
+    out=$(php "$PLUGIN_DIR/lan-routes.php")
+    rc=$?
+    case "$rc" in
+        0)
+            log "Running: tailscale set --accept-routes"
+            tailscale set --accept-routes
+            ;;
+        1)
+            log "WARNING: not accepting subnet routes, because accepting them would cut this FPP off from its local network:"
+            log "$out"
+            ;;
+        *)
+            log "WARNING: not accepting subnet routes, because the plugin couldn't check they're safe: ${out:-lan-routes.php failed}"
+            ;;
+    esac
 }
 
 start_up() {
     ensure_tailscaled || exit 1
     kill_pending_up
-    setsid /bin/bash "$SELF" _up-worker >> "$LOG_FILE" 2>&1 < /dev/null &
+    setsid /bin/bash "$SELF" _up-worker >> "$LOG_FILE" 2>&1 < /dev/null 9>&- &
     echo $! > "$UP_PIDFILE"
 }
+
+# One lifecycle action at a time. Two Connects at once (or auto-connect at boot
+# and a click) could otherwise each start a worker and leave one that
+# Disconnect doesn't know about. Processes that outlive this script (the worker,
+# a manually started tailscaled) close fd 9, so they don't keep the lock.
+lock_actions() {
+    exec 9> /run/fpp-tailscale.lock || exit 1
+    if ! flock -w 60 9; then
+        echo "Another Tailscale action is still running. Try again in a moment."
+        exit 1
+    fi
+}
+
+case "$1" in
+    up|down|reauth|autoupdate-on|autoupdate-off) lock_actions ;;
+esac
 
 case "$1" in
     up)

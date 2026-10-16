@@ -58,6 +58,19 @@ log() {
     return 0
 }
 
+# split_flags LINE - print each argument of a command line that Tailscale
+# printed, one per line, undoing its shell quoting (xargs reads the same
+# quotes). Fails unless every argument is a --flag or --flag=value.
+split_flags() {
+    local out a
+    out=$(printf '%s\n' "$1" | xargs -n 1 printf '%s\n' 2>/dev/null) || return 1
+    [ -n "$out" ] || return 1
+    while IFS= read -r a; do
+        [[ "$a" == --[a-z]* ]] || return 1
+    done <<< "$out"
+    printf '%s\n' "$out"
+}
+
 # Filter: remove sign-in links from output headed for the log.
 redact() {
     sed -u "$REDACT_SED"
@@ -246,12 +259,12 @@ ensure_installed() {
 
 # Succeeds once tailscaled answers on its socket.
 ts_ready() {
-    tailscale status --json 2>/dev/null | grep -q '"BackendState"'
+    timeout 5 tailscale status --json 2>/dev/null | grep -q '"BackendState"'
 }
 
 # tailscaled's BackendState: Running, Stopped, NeedsLogin, NeedsMachineAuth, ...
 ts_backend_state() {
-    tailscale status --json 2>/dev/null \
+    timeout 5 tailscale status --json 2>/dev/null \
         | sed -n 's/^[[:space:]]*"BackendState": "\([A-Za-z]*\)".*/\1/p' | head -n 1
 }
 
@@ -288,7 +301,7 @@ start_tailscaled_manually() {
         # open for as long as tailscaled runs.
         $SUDO setsid nohup tailscaled "$NO_LOGS_FLAG" "${extra[@]}" \
             --state="$TS_STATE_DIR/tailscaled.state" \
-            --socket="$TS_SOCKET" > >(exec sed -u "$REDACT_SED" >> "$LOG_FILE" 2>&1) 2>&1 < /dev/null &
+            --socket="$TS_SOCKET" > >(exec sed -u "$REDACT_SED" >> "$LOG_FILE" 2>&1 9>&-) 2>&1 < /dev/null 9>&- &
         pid=$!
         for _ in $(seq 1 10); do
             if ts_ready; then

@@ -6,7 +6,8 @@
  *
  * Included by api-handler.php. Also run by scripts/ts-ctl.sh as
  *   php lan-routes.php
- * which prints one conflict per line and exits 1 if there are any.
+ * which prints one conflict per line and exits 1 if there are any, or prints
+ * why it couldn't check and exits 2. Only exit 0 means it's safe.
  *
  * Keep this PHP 7.4-compatible, and safe on 32-bit PHP (no unsigned IPv4 math).
  */
@@ -80,10 +81,31 @@ function tsRouteConflicts($status, $nets = null)
     return array_values(array_unique($conflicts));
 }
 
+// Like tsRouteConflicts(), but also says when the check couldn't be done, so
+// callers refuse instead of treating "couldn't tell" as safe. Returns
+// array(conflicts, error); error is null when the check ran.
+function tsRouteCheck($status, $nets = null)
+{
+    if (!is_array($status) || !isset($status['BackendState'])) {
+        return array(array(), "Couldn't read Tailscale's status");
+    }
+    if ($nets === null) {
+        $nets = tsLocalNetworks();
+    }
+    if (!$nets) {
+        return array(array(), "Couldn't read this FPP's own network addresses");
+    }
+    return array(tsRouteConflicts($status, $nets), null);
+}
+
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === __FILE__) {
-    $out = (string)shell_exec('tailscale status --json 2>/dev/null');
+    $out = (string)shell_exec('timeout 10 tailscale status --json 2>/dev/null');
     $start = strpos($out, '{');
-    $conflicts = tsRouteConflicts($start === false ? null : json_decode(substr($out, $start), true));
+    list($conflicts, $error) = tsRouteCheck($start === false ? null : json_decode(substr($out, $start), true));
+    if ($error !== null) {
+        echo $error, "\n";
+        exit(2);
+    }
     if ($conflicts) {
         echo implode("\n", $conflicts), "\n";
         exit(1);

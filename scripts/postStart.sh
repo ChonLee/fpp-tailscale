@@ -6,11 +6,11 @@
 
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/common.sh"
 
-# In case an update didn't re-run fpp_install.sh.
-redact_old_logs
-
 (
     log "=== FPP started, checking Tailscale ==="
+    # In case an update didn't re-run fpp_install.sh. In the background: it
+    # can mean reading FPP's rotated logs.
+    redact_old_logs
     migrate_apt_source
 
     # Without auto-connect, leave Tailscale alone: if it was connected before,
