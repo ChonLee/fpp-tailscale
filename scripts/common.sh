@@ -117,6 +117,20 @@ ts_ready() {
     tailscale status --json 2>/dev/null | grep -q '"BackendState"'
 }
 
+# tailscaled's BackendState: Running, Stopped, NeedsLogin, NeedsMachineAuth, ...
+ts_backend_state() {
+    tailscale status --json 2>/dev/null \
+        | sed -n 's/^[[:space:]]*"BackendState": "\([A-Za-z]*\)".*/\1/p' | head -n 1
+}
+
+# Succeeds if this device is signed in to a tailnet, connected or not.
+ts_logged_in() {
+    case "$(ts_backend_state)" in
+        Running|Starting|Stopped|NeedsMachineAuth) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # wait_ready SECONDS
 wait_ready() {
     for _ in $(seq 1 "${1:-10}"); do
