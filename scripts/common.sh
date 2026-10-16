@@ -126,6 +126,33 @@ ts_installed() {
     command -v tailscale >/dev/null 2>&1 && command -v tailscaled >/dev/null 2>&1
 }
 
+# run_apt CMD... - run an apt command with its output in the log. During
+# install (LOG_ECHO set) it also goes to FPP's install window, which shows
+# whole lines as they arrive, with a line every 15 seconds so a long, quiet
+# download doesn't look stuck.
+run_apt() {
+    if [ -z "$LOG_ECHO" ]; then
+        "$@" >> "$LOG_FILE" 2>&1
+        return
+    fi
+    local hb rc
+    (
+        s=0
+        # sleep's own output goes nowhere, so a sleep left running after the
+        # kill below can't hold the install window's pipe open.
+        while sleep 15 > /dev/null 2>&1; do
+            s=$((s + 15))
+            echo "    ...still working (${s}s)"
+        done
+    ) &
+    hb=$!
+    "$@" 2>&1 | tee -a "$LOG_FILE"
+    rc=${PIPESTATUS[0]}
+    kill "$hb" 2>/dev/null
+    wait "$hb" 2>/dev/null
+    return "$rc"
+}
+
 # Add Tailscale's apt source, as FPP's plugin guidelines (§14.14) require: the
 # signing key ships with the plugin (apt/, fingerprint
 # 2596 A99E AAB3 3821 893C  0A79 458C A832 957F 5868, the same for every
@@ -192,11 +219,22 @@ ensure_installed() {
     if [ -d /run/systemd/system ] && $SUDO systemctl mask --runtime tailscaled >/dev/null 2>&1; then
         masked=1
     fi
-    # A full update, not just Tailscale's source: the package needs Debian
-    # packages too (nftables), and an image's Debian lists may be out of date.
-    $SUDO apt-get update >> "$LOG_FILE" 2>&1 \
-        && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale >> "$LOG_FILE" 2>&1
+    # Refresh only Tailscale's source first: usually enough, and much faster
+    # than refreshing everything (Raspbian's lists alone are ~16 MB). If the
+    # install still fails, the image's Debian lists are probably too old for
+    # the Debian packages Tailscale needs (nftables), so refresh all and retry.
+    log "Updating Tailscale's package list..."
+    run_apt $SUDO apt-get update -o Dir::Etc::SourceList=sources.list.d/tailscale.list \
+        -o Dir::Etc::SourceParts=- -o APT::Get::List-Cleanup=0
+    log "Downloading and installing Tailscale..."
+    run_apt $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale
     rc=$?
+    if [ "$rc" -ne 0 ]; then
+        log "Refreshing all package lists and trying again (this can take a few minutes)..."
+        run_apt $SUDO apt-get update \
+            && run_apt $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale
+        rc=$?
+    fi
     [ -n "$masked" ] && $SUDO systemctl unmask --runtime tailscaled >/dev/null 2>&1
     if [ "$rc" -ne 0 ] || ! ts_installed; then
         log "ERROR: failed to install Tailscale"
