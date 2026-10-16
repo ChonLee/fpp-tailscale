@@ -8,6 +8,8 @@
 #           auth URL; callers read it from `tailscale status --json`.
 #   down    Disconnect.
 #   reauth  Log out, then `up` again to get a fresh login URL.
+#   autoupdate-on / autoupdate-off
+#           Turn Tailscale's automatic updates on or off.
 #
 
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -105,13 +107,23 @@ case "$1" in
         timeout 15 tailscale logout >> "$LOG_FILE" 2>&1
         start_up
         ;;
+    autoupdate-on|autoupdate-off)
+        flag=--auto-update
+        [ "$1" = autoupdate-off ] && flag=--auto-update=false
+        log "Running: tailscale set $flag"
+        out=$(timeout 15 tailscale set "$flag" 2>&1)
+        rc=$?
+        [ -n "$out" ] && log "$out"
+        echo "$out"
+        exit "$rc"
+        ;;
     _up-worker)
         up_worker
         # Only clear the pidfile if a newer `up` hasn't replaced it.
         [ "$(cat "$UP_PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$UP_PIDFILE"
         ;;
     *)
-        echo "usage: $0 up|down|reauth" >&2
+        echo "usage: $0 up|down|reauth|autoupdate-on|autoupdate-off" >&2
         exit 2
         ;;
 esac

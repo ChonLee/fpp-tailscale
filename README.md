@@ -12,6 +12,7 @@ Works on FPP 7.x through 10.x.
 - **Custom device name**, or use the system hostname
 - **Live status**: Tailscale IP, hostname and MagicDNS name
 - **Force re-authenticate** for devices that were removed or expired in the admin console
+- **Automatic Tailscale updates**, optional
 - **Keeps your own Tailscale settings**: things you set with the `tailscale` command, such as Tailscale SSH or an exit node, survive connects and reboots
 - **Log viewer** for the plugin's recent activity
 
@@ -57,6 +58,10 @@ With it unchecked, the plugin doesn't force a connection. Tailscale itself still
 These settings save as soon as you change them. If Tailscale is connected, the change applies right away. Leave the device name blank to use the system hostname.
 
 The plugin only manages the device name and subnet routes. Anything else you set with the `tailscale` command (Tailscale SSH, an exit node, advertised routes, ...) is left alone when the plugin connects.
+
+### Automatic updates
+
+**Keep Tailscale up to date automatically** turns on Tailscale's own updater, which installs new versions from pkgs.tailscale.com. An update restarts the Tailscale connection for a few seconds; FPP and your show keep running. This is Tailscale's own setting, so the box shows what Tailscale is actually set to, even if it was changed elsewhere.
 
 ### Re-authenticating
 

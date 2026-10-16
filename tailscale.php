@@ -103,6 +103,11 @@
             <span class="ts-help" tabindex="0" role="note"
                 title="Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection.">&#9432;</span>
         </div>
+        <div class="ts-check">
+            <label><input type="checkbox" class="form-check-input" id="ts-auto-update"> Keep Tailscale up to date automatically</label>
+            <span class="ts-help" tabindex="0" role="note"
+                title="Tailscale installs its own updates from pkgs.tailscale.com when a new version comes out. An update restarts the Tailscale connection for a few seconds; FPP and your show keep running. This is Tailscale's own setting, so the box shows what Tailscale is actually set to.">&#9432;</span>
+        </div>
 
         <label for="ts-hostname">Device name on your tailnet</label>
         <input type="text" id="ts-hostname" class="form-control" maxlength="63" autocomplete="off">
@@ -278,6 +283,9 @@
             .done(function (data) {
                 $('#ts-auto-connect').prop('checked', data.config.auto_connect);
                 $('#ts-accept-routes').prop('checked', data.config.accept_routes);
+                // null: Tailscale isn't running, so its setting can't be read.
+                $('#ts-auto-update').prop('checked', data.auto_update === true)
+                    .prop('disabled', data.auto_update === null);
                 $('#ts-hostname').val(data.config.hostname).attr('placeholder', data.system_hostname);
                 $('#ts-system-hostname').text(data.system_hostname);
                 render(data.status);
@@ -306,6 +314,25 @@
         });
         $('#ts-accept-routes').on('change', function () {
             saveConfig({ accept_routes: this.checked });
+        });
+        $('#ts-auto-update').on('change', function () {
+            var enabled = this.checked;
+            $('#ts-config-message').text('Saving...');
+            $.ajax({
+                url: API + 'autoUpdate',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ enabled: enabled }),
+                dataType: 'json'
+            })
+                .done(function (data) {
+                    $('#ts-config-message').text('Saved and applied.');
+                    $('#ts-auto-update').prop('checked', data.auto_update === true);
+                })
+                .fail(function (xhr) {
+                    $('#ts-config-message').text(errorText(xhr));
+                    $('#ts-auto-update').prop('checked', !enabled);
+                });
         });
         $('#ts-save-hostname').on('click', function () {
             saveConfig({ hostname: $('#ts-hostname').val().trim() });

@@ -104,6 +104,24 @@ function tsStatusJson($bin, &$error)
     return $json;
 }
 
+// Tailscale's own automatic-update setting: true or false, or null if it
+// can't be read (Tailscale not installed or not running). Falls back to sudo
+// like tsStatusJson().
+function tsAutoUpdate()
+{
+    $bin = tsBin();
+    if ($bin === null) {
+        return null;
+    }
+    foreach (array('', 'sudo -n ') as $prefix) {
+        $prefs = json_decode(tsRun($prefix . escapeshellarg($bin) . ' debug prefs 2>/dev/null'), true);
+        if (is_array($prefs) && isset($prefs['AutoUpdate']) && is_array($prefs['AutoUpdate'])) {
+            return !empty($prefs['AutoUpdate']['Apply']);
+        }
+    }
+    return null;
+}
+
 // Read-only status: one `tailscale status --json` call, no side effects.
 function tsStatus()
 {
@@ -201,6 +219,7 @@ $routes = array(
     'disconnect' => 'POST',
     'reauth' => 'POST',
     'saveConfig' => 'POST',
+    'autoUpdate' => 'POST',
 );
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
@@ -219,6 +238,7 @@ switch ($action) {
             'success' => true,
             'status' => tsStatus(),
             'config' => tsReadConfig(),
+            'auto_update' => tsAutoUpdate(),
             'system_hostname' => $hostname === false ? '' : $hostname,
         ));
         break;
@@ -301,5 +321,22 @@ switch ($action) {
             $applied = tsCtl('up')['ok'];
         }
         tsRespond(200, array('success' => true, 'config' => $cfg, 'applied' => $applied));
+        break;
+
+    // Not plugin config: it's Tailscale's own setting, so it's set directly and
+    // read back from Tailscale (tsAutoUpdate), which keeps it right if it's
+    // changed elsewhere.
+    case 'autoUpdate':
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input) || !array_key_exists('enabled', $input)) {
+            tsRespond(400, array('success' => false, 'message' => 'Expected {"enabled": true|false}'));
+        }
+        $enabled = filter_var($input['enabled'], FILTER_VALIDATE_BOOLEAN);
+        $result = tsCtl($enabled ? 'autoupdate-on' : 'autoupdate-off');
+        tsRespond($result['ok'] ? 200 : 500, array(
+            'success' => $result['ok'],
+            'message' => $result['output'],
+            'auto_update' => tsAutoUpdate(),
+        ));
         break;
 }

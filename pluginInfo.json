@@ -52,7 +52,7 @@
     "systemChanges": [
       {
         "kind": "download",
-        "what": "installs Tailscale from tailscale.com, and reinstalls it when FPP starts if an FPP OS update removed it"
+        "what": "installs Tailscale from tailscale.com and reinstalls it if an FPP OS update removed it. With automatic updates on, Tailscale also updates itself"
       },
       {
         "kind": "package-source",
@@ -72,7 +72,7 @@
       }
     ],
     "closedCode": false,
-    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source, unless Tailscale was installed before the plugin: then it's left as it was."
+    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Automatic updates, if you turn them on, come from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source, unless Tailscale was installed before the plugin: then it's left as it was."
   },
   "versions": [
     {
