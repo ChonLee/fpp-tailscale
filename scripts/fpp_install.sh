@@ -9,10 +9,7 @@ LOG_ECHO=1
 
 mkdir -p "$LOG_DIR"
 
-# Older versions logged to /var/log; move that history next to FPP's logs.
-if [ -f "$OLD_LOG_FILE" ]; then
-    cat "$OLD_LOG_FILE" >> "$LOG_FILE" && rm -f "$OLD_LOG_FILE"
-fi
+migrate_old_logs
 touch "$LOG_FILE"
 chmod 644 "$LOG_FILE"
 id fpp >/dev/null 2>&1 && chown fpp:fpp "$LOG_FILE"

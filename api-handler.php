@@ -8,7 +8,7 @@
  */
 
 define('TS_CONFIG_FILE', '/home/fpp/media/config/plugin.fpp-tailscale');
-define('TS_LOG_FILE', '/home/fpp/media/logs/fpp-tailscale.log');
+define('TS_LOG_FILE', '/home/fpp/media/logs/plugin-fpp-tailscale.log');
 define('TS_CTL', __DIR__ . '/scripts/ts-ctl.sh');
 
 require_once __DIR__ . '/lan-routes.php';
