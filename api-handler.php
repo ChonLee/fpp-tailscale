@@ -1,380 +1,305 @@
 <?php
 /*
- * Tailscale Plugin API for FPP
- * Handles all backend operations for the Tailscale management interface
- * 
+ * Tailscale plugin backend for FPP.
+ *
  * Called via: plugin.php?plugin=fpp-tailscale&nopage=1&page=api-handler.php&action=...
+ *
+ * Keep this PHP 7.4-compatible: FPP 7 runs on Debian bullseye.
  */
 
-$PLUGIN_VERSION = "2025.12.11.1";
+define('TS_CONFIG_FILE', '/home/fpp/media/config/plugin.fpp-tailscale');
+define('TS_LOG_FILE', '/home/fpp/media/logs/fpp-tailscale.log');
+define('TS_CTL', __DIR__ . '/scripts/ts-ctl.sh');
 
-header('Content-Type: application/json');
+require_once __DIR__ . '/lan-routes.php';
 
-// Use FPP's standard config directory
-$PLUGIN_NAME = "fpp-tailscale";
-$CONFIG_DIR = "/home/fpp/media/config";
-$CONFIG_FILE = "$CONFIG_DIR/plugin.$PLUGIN_NAME";
-$LOG_FILE = "/var/log/fpp-tailscale.log";
-
-// Ensure config directory exists
-if (!is_dir($CONFIG_DIR)) {
-    mkdir($CONFIG_DIR, 0755, true);
+function tsRespond($code, $data)
+{
+    http_response_code($code);
+    header('Content-Type: application/json');
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
 }
 
-/**
- * Execute a shell command and return output
- */
-function execCommand($cmd) {
-    exec($cmd . " 2>&1", $output, $return_code);
-    return [
-        'output' => implode("\n", $output),
-        'return_code' => $return_code
-    ];
+function tsRun($cmd, &$rc = null)
+{
+    $out = array();
+    exec($cmd, $out, $rc);
+    return implode("\n", $out);
 }
 
-/**
- * Read configuration file (INI format)
- */
-function readConfig() {
-    global $CONFIG_FILE;
-    
-    // Get system hostname as default
-    $systemHostname = trim(shell_exec('hostname') ?: 'fpp-player');
-    
-    $defaults = [
-        'auto_connect' => false,
-        'accept_routes' => false,
-        'advertise_exit' => false,
-        'hostname' => $systemHostname
-    ];
-    
-    if (file_exists($CONFIG_FILE)) {
-        $config = parse_ini_file($CONFIG_FILE);
-        if ($config !== false) {
-            // Convert string "true"/"false" to boolean
-            foreach ($config as $key => $value) {
-                if ($value === 'true' || $value === '1') {
-                    $config[$key] = true;
-                } elseif ($value === 'false' || $value === '0') {
-                    $config[$key] = false;
-                }
+function tsCtl($command)
+{
+    $out = tsRun('sudo -n /bin/bash ' . escapeshellarg(TS_CTL) . ' ' . escapeshellarg($command) . ' 2>&1', $rc);
+    return array('ok' => $rc === 0, 'output' => $out);
+}
+
+function tsBin()
+{
+    foreach (array('/usr/bin/tailscale', '/usr/local/bin/tailscale', '/usr/sbin/tailscale') as $path) {
+        if (is_executable($path)) {
+            return $path;
+        }
+    }
+    return null;
+}
+
+function tsReadConfig()
+{
+    $cfg = array('auto_connect' => false, 'accept_routes' => false, 'hostname' => '');
+    $ini = is_readable(TS_CONFIG_FILE) ? @parse_ini_file(TS_CONFIG_FILE, false, INI_SCANNER_TYPED) : false;
+    if (is_array($ini)) {
+        foreach (array('auto_connect', 'accept_routes') as $key) {
+            if (isset($ini[$key])) {
+                $cfg[$key] = filter_var($ini[$key], FILTER_VALIDATE_BOOLEAN);
             }
-            // Merge with defaults, but keep system hostname if not explicitly set
-            $merged = array_merge($defaults, $config);
-            
-            // If hostname in config is empty or default, use system hostname
-            if (empty($merged['hostname']) || $merged['hostname'] === 'fpp-player') {
-                $merged['hostname'] = $systemHostname;
-            }
-            
-            return $merged;
+        }
+        if (isset($ini['hostname'])) {
+            $cfg['hostname'] = (string)$ini['hostname'];
         }
     }
-    
-    return $defaults;
+    return $cfg;
 }
 
-/**
- * Write configuration file (INI format)
- */
-function writeConfig($config) {
-    global $CONFIG_FILE, $CONFIG_DIR;
-    
-    // Ensure directory exists
-    if (!is_dir($CONFIG_DIR)) {
-        mkdir($CONFIG_DIR, 0777, true);
+// Same `key = "value"` format FPP uses for its own settings files.
+function tsWriteConfig($cfg)
+{
+    $ini = 'auto_connect = "' . ($cfg['auto_connect'] ? 'true' : 'false') . "\"\n"
+        . 'accept_routes = "' . ($cfg['accept_routes'] ? 'true' : 'false') . "\"\n"
+        . 'hostname = "' . $cfg['hostname'] . "\"\n";
+    $tmp = TS_CONFIG_FILE . '.tmp';
+    if (@file_put_contents($tmp, $ini) === false) {
+        return false;
     }
-    
-    $iniContent = "; Tailscale Plugin Configuration\n";
-    $iniContent .= "; Generated: " . date('Y-m-d H:i:s') . "\n\n";
-    
-    foreach ($config as $key => $value) {
-        // Convert boolean to string
-        if (is_bool($value)) {
-            $value = $value ? 'true' : 'false';
-        }
-        $iniContent .= "$key = $value\n";
-    }
-    
-    // Write the file
-    $result = @file_put_contents($CONFIG_FILE, $iniContent);
-    
-    // Set proper permissions if file was created
-    if ($result !== false && file_exists($CONFIG_FILE)) {
-        @chmod($CONFIG_FILE, 0666);
-    }
-    
-    return $result !== false;
+    @chmod($tmp, 0644);
+    return @rename($tmp, TS_CONFIG_FILE);
 }
 
-/**
- * Get Tailscale status
+function tsDecodeStatus($out)
+{
+    // Skip any warning text printed ahead of the JSON.
+    $start = strpos($out, '{');
+    if ($start === false) {
+        return null;
+    }
+    $json = json_decode(substr($out, $start), true);
+    return (is_array($json) && isset($json['BackendState'])) ? $json : null;
+}
+
+/*
+ * Decoded `tailscale status --json`, or null with $error set. Non-root users
+ * may read status, so sudo is only a fallback.
  */
-function getTailscaleStatus() {
-    // Check if tailscaled is running
-    $daemonCheck = execCommand("pgrep -x tailscaled");
-    if ($daemonCheck['return_code'] !== 0) {
-        return [
-            'connected' => false,
-            'status' => 'Tailscale daemon not running',
-            'daemon_running' => false
-        ];
-    }
-    
-    // Get text status first to check login state
-    $textStatus = execCommand("sudo tailscale status 2>&1");
-    $statusOutput = $textStatus['output'];
-    
-    // Get detailed JSON status to check actual connection state
-    $jsonResult = execCommand("sudo tailscale status --json 2>&1");
-    $jsonStatus = null;
-    if ($jsonResult['return_code'] === 0) {
-        $jsonStatus = json_decode($jsonResult['output'], true);
-    }
-    
-    // Check if device is revoked/expired in JSON status
-    if ($jsonStatus && isset($jsonStatus['Self'])) {
-        $self = $jsonStatus['Self'];
-        
-        // Check for revoked or expired state
-        if (isset($self['KeyExpired']) && $self['KeyExpired'] === true) {
-            // Key expired, need to re-authenticate
-            execCommand("sudo tailscale logout 2>&1");
-            
-            $config = readConfig();
-            $hostname = $config['hostname'] ?? 'fpp-player';
-            $authResult = execCommand("timeout 3 sudo tailscale up --hostname={$hostname} 2>&1 || true");
-            $authUrl = null;
-            
-            if (preg_match('/https:\/\/login\.tailscale\.com\/[^\s\'"<>]+/', $authResult['output'], $matches)) {
-                $authUrl = $matches[0];
-            }
-            
-            return [
-                'connected' => false,
-                'daemon_running' => true,
-                'status' => 'Device revoked - authentication required',
-                'auth_url' => $authUrl
-            ];
-        }
-        
-        // Check if actually connected with valid IP
-        $hasIP = !empty($self['TailscaleIPs']) && !empty($self['TailscaleIPs'][0]);
-        $isOnline = isset($self['Online']) && $self['Online'] === true;
-        
-        if ($hasIP && $isOnline) {
-            return [
-                'connected' => true,
-                'daemon_running' => true,
-                'ip' => $self['TailscaleIPs'][0],
-                'hostname' => $self['HostName'] ?? 'N/A',
-                'status' => 'Connected',
-                'online' => true,
-                'auth_url' => null
-            ];
+function tsStatusJson($bin, &$error)
+{
+    $json = tsDecodeStatus(tsRun(escapeshellarg($bin) . ' status --json 2>/dev/null'));
+    if ($json === null) {
+        $out = tsRun('sudo -n ' . escapeshellarg($bin) . ' status --json 2>&1');
+        $json = tsDecodeStatus($out);
+        if ($json === null) {
+            $lines = explode("\n", trim($out));
+            $error = $lines[0];
         }
     }
-    
-    // Not connected - check if needs login/authentication
-    // Look for various "not logged in" indicators
-    if (strpos($statusOutput, 'Logged out') !== false ||
-        strpos($statusOutput, 'NeedsLogin') !== false ||
-        strpos($statusOutput, 'run `tailscale up`') !== false ||
-        strpos($statusOutput, 'not logged in') !== false ||
-        strpos($statusOutput, 'expired') !== false ||
-        strpos($statusOutput, 'revoked') !== false ||
-        empty($statusOutput) ||
-        trim($statusOutput) === '') {
-        
-        // Definitely needs auth - try to get URL
-        $config = readConfig();
-        $hostname = $config['hostname'] ?? 'fpp-player';
-        
-        $authResult = execCommand("timeout 3 sudo tailscale up --hostname={$hostname} 2>&1 || true");
-        $authUrl = null;
-        
-        // Extract URL from output
-        if (preg_match('/https:\/\/login\.tailscale\.com\/[^\s\'"<>]+/', $authResult['output'], $matches)) {
-            $authUrl = $matches[0];
-        }
-        
-        return [
-            'connected' => false,
-            'daemon_running' => true,
-            'status' => 'Authentication required',
-            'auth_url' => $authUrl
-        ];
-    }
-    
-    // Disconnected - show helpful message
-    return [
-        'connected' => false,
-        'daemon_running' => true,
-        'status' => 'Disconnected (click Connect, or use Authenticate if device was revoked)'
-    ];
+    return $json;
 }
 
-/**
- * Connect to Tailscale
- */
-function connectTailscale() {
-    $config = readConfig();
-    
-    $args = [];
-    if ($config['accept_routes']) {
-        $args[] = '--accept-routes';
+// Read-only status: one `tailscale status --json` call, no side effects.
+function tsStatus()
+{
+    $bin = tsBin();
+    if ($bin === null) {
+        return array('state' => 'not_installed');
     }
-    if (!empty($config['hostname'])) {
-        $args[] = '--hostname=' . escapeshellarg($config['hostname']);
+
+    $json = tsStatusJson($bin, $error);
+    if ($json === null) {
+        return array('state' => 'daemon_down', 'message' => $error);
     }
-    
-    $cmd = "sudo tailscale up " . implode(' ', $args);
-    $result = execCommand($cmd);
-    
-    // Check if we got an auth URL
-    $authUrl = null;
-    if (preg_match('/https:\/\/login\.tailscale\.com\/[^\s]+/', $result['output'], $matches)) {
-        $authUrl = $matches[0];
+
+    $self = (isset($json['Self']) && is_array($json['Self'])) ? $json['Self'] : array();
+    $backend = $json['BackendState'];
+
+    if ($backend === 'NeedsLogin' || !empty($self['KeyExpired'])) {
+        $authUrl = isset($json['AuthURL']) ? (string)$json['AuthURL'] : '';
+        return array('state' => 'needs_auth', 'auth_url' => $authUrl);
     }
-    
-    return [
-        'success' => $result['return_code'] === 0 || $authUrl !== null,
-        'message' => $result['output'],
-        'auth_url' => $authUrl
-    ];
-}
-
-/**
- * Disconnect from Tailscale
- */
-function disconnectTailscale() {
-    $result = execCommand("sudo tailscale down");
-    return [
-        'success' => $result['return_code'] === 0,
-        'message' => $result['output']
-    ];
-}
-
-/**
- * Get recent logs
- */
-function getLogs() {
-    global $LOG_FILE;
-    
-    if (file_exists($LOG_FILE)) {
-        $lines = file($LOG_FILE);
-        $recentLines = array_slice($lines, -50); // Last 50 lines
-        return implode('', $recentLines);
+    if ($backend === 'NeedsMachineAuth') {
+        return array('state' => 'needs_approval');
     }
-    
-    return "No logs available";
-}
+    if ($backend === 'Stopped') {
+        return array('state' => 'disconnected');
+    }
+    if ($backend !== 'Running') {
+        return array('state' => 'starting');
+    }
 
-// Main API router
-$action = $_GET['action'] ?? '';
-
-try {
-    switch ($action) {
-        case 'getStatus':
-            $status = getTailscaleStatus();
-            echo json_encode([
-                'success' => true,
-                'status' => $status
-            ]);
-            break;
-            
-        case 'getConfig':
-            $config = readConfig();
-            echo json_encode([
-                'success' => true,
-                'config' => $config
-            ]);
-            break;
-            
-        case 'saveConfig':
-            // Get input from raw POST data
-            $rawInput = file_get_contents('php://input');
-            $input = json_decode($rawInput, true);
-            
-            // Debug logging
-            error_log("Tailscale saveConfig - Raw input: " . substr($rawInput, 0, 200));
-            error_log("Tailscale saveConfig - Parsed: " . print_r($input, true));
-            error_log("Tailscale saveConfig - Config file: " . $CONFIG_FILE);
-            
-            if (!$input) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Invalid JSON input'
-                ]);
+    $ip = '';
+    if (!empty($self['TailscaleIPs']) && is_array($self['TailscaleIPs'])) {
+        $ip = $self['TailscaleIPs'][0];
+        foreach ($self['TailscaleIPs'] as $addr) {
+            if (strpos($addr, '.') !== false) {
+                $ip = $addr;
                 break;
             }
-            
-            // Ensure config file is writable
-            if (file_exists($CONFIG_FILE) && !is_writable($CONFIG_FILE)) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Config file not writable: ' . $CONFIG_FILE
-                ]);
-                break;
+        }
+    }
+    return array(
+        'state' => 'connected',
+        'ip' => $ip,
+        'hostname' => isset($self['HostName']) ? $self['HostName'] : '',
+        'dns_name' => isset($self['DNSName']) ? rtrim($self['DNSName'], '.') : '',
+    );
+}
+
+// After starting `tailscale up`, wait briefly until there's something to show.
+function tsWaitForSettled($seconds)
+{
+    $deadline = microtime(true) + $seconds;
+    do {
+        usleep(300000);
+        $status = tsStatus();
+        $state = $status['state'];
+        if ($state === 'connected' || $state === 'needs_approval'
+            || ($state === 'needs_auth' && $status['auth_url'] !== '')) {
+            break;
+        }
+    } while (microtime(true) < $deadline);
+    return $status;
+}
+
+function tsLogTail($maxLines)
+{
+    if (!is_readable(TS_LOG_FILE)) {
+        return '';
+    }
+    $size = filesize(TS_LOG_FILE);
+    $len = min($size, 16384);
+    if ($len <= 0) {
+        return '';
+    }
+    $fh = fopen(TS_LOG_FILE, 'rb');
+    if ($fh === false) {
+        return '';
+    }
+    fseek($fh, -$len, SEEK_END);
+    $data = fread($fh, $len);
+    fclose($fh);
+
+    $lines = explode("\n", rtrim($data, "\n"));
+    if ($len < $size) {
+        array_shift($lines); // first line is probably partial
+    }
+    return implode("\n", array_slice($lines, -$maxLines));
+}
+
+$routes = array(
+    'state' => 'GET',
+    'status' => 'GET',
+    'logs' => 'GET',
+    'connect' => 'POST',
+    'disconnect' => 'POST',
+    'reauth' => 'POST',
+    'saveConfig' => 'POST',
+);
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+
+if (!isset($routes[$action])) {
+    tsRespond(400, array('success' => false, 'message' => 'Unknown action'));
+}
+if ($method !== $routes[$action]) {
+    tsRespond(405, array('success' => false, 'message' => "Use $routes[$action] for $action"));
+}
+
+switch ($action) {
+    case 'state':
+        $hostname = gethostname();
+        tsRespond(200, array(
+            'success' => true,
+            'status' => tsStatus(),
+            'config' => tsReadConfig(),
+            'system_hostname' => $hostname === false ? '' : $hostname,
+        ));
+        break;
+
+    case 'status':
+        tsRespond(200, array('success' => true, 'status' => tsStatus()));
+        break;
+
+    case 'logs':
+        tsRespond(200, array('success' => true, 'logs' => tsLogTail(100)));
+        break;
+
+    case 'connect':
+    case 'reauth':
+        $result = tsCtl($action === 'connect' ? 'up' : 'reauth');
+        if (!$result['ok']) {
+            tsRespond(500, array('success' => false, 'message' => $result['output'], 'status' => tsStatus()));
+        }
+        tsRespond(200, array('success' => true, 'status' => tsWaitForSettled(10)));
+        break;
+
+    case 'disconnect':
+        $result = tsCtl('down');
+        tsRespond($result['ok'] ? 200 : 500, array(
+            'success' => $result['ok'],
+            'message' => $result['output'],
+            'status' => tsStatus(),
+        ));
+        break;
+
+    case 'saveConfig':
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            tsRespond(400, array('success' => false, 'message' => 'Invalid JSON input'));
+        }
+
+        $cfg = tsReadConfig();
+        foreach (array('auto_connect', 'accept_routes') as $key) {
+            if (array_key_exists($key, $input)) {
+                $cfg[$key] = filter_var($input[$key], FILTER_VALIDATE_BOOLEAN);
             }
-            
-            if (writeConfig($input)) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Configuration saved successfully'
-                ]);
-            } else {
-                $error = error_get_last();
-                echo json_encode([
+        }
+
+        // Refuse routes that cover this FPP's own LAN: accepting them cuts the
+        // FPP off from its local network. ts-ctl.sh checks again on every
+        // connect, since the routes are only known once connected.
+        if (!empty($input['accept_routes']) && $cfg['accept_routes'] && tsBin() !== null) {
+            $conflicts = tsRouteConflicts(tsStatusJson(tsBin(), $error));
+            if ($conflicts) {
+                tsRespond(409, array(
                     'success' => false,
-                    'message' => 'Failed to write config file: ' . ($error['message'] ?? 'Unknown error')
-                ]);
+                    'message' => 'Not turned on: ' . implode('; ', $conflicts)
+                        . '. Accepting that route would cut this FPP off from your local network.',
+                ));
             }
-            break;
-            
-        case 'connect':
-            $result = connectTailscale();
-            echo json_encode($result);
-            break;
-            
-        case 'disconnect':
-            $result = disconnectTailscale();
-            echo json_encode($result);
-            break;
-            
-        case 'logout':
-            $result = execCommand("sudo tailscale logout 2>&1");
-            echo json_encode([
-                'success' => $result['return_code'] === 0,
-                'message' => $result['output']
-            ]);
-            break;
-            
-        case 'getSystemInfo':
-            $systemHostname = trim(shell_exec('hostname') ?: 'unknown');
-            echo json_encode([
-                'success' => true,
-                'hostname' => $systemHostname
-            ]);
-            break;
-            
-        case 'getLogs':
-            $logs = getLogs();
-            echo json_encode([
-                'success' => true,
-                'logs' => $logs
-            ]);
-            break;
-            
-        default:
-            echo json_encode([
+        }
+        if (array_key_exists('hostname', $input)) {
+            $hostname = trim((string)$input['hostname']);
+            if ($hostname !== '' && !preg_match('/^[A-Za-z0-9]([A-Za-z0-9.-]{0,61}[A-Za-z0-9])?$/', $hostname)) {
+                tsRespond(400, array(
+                    'success' => false,
+                    'message' => 'Invalid hostname: use letters, numbers, hyphens and dots, starting and ending with a letter or number',
+                ));
+            }
+            $cfg['hostname'] = $hostname;
+        }
+
+        if (!tsWriteConfig($cfg)) {
+            $error = error_get_last();
+            tsRespond(500, array(
                 'success' => false,
-                'message' => 'Unknown action: ' . $action
-            ]);
-    }
-} catch (Exception $e) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Error: ' . $e->getMessage()
-    ]);
+                'message' => 'Could not write ' . TS_CONFIG_FILE . ': ' . ($error ? $error['message'] : 'unknown error'),
+            ));
+        }
+
+        // Apply hostname/route changes right away if we're connected.
+        $applied = false;
+        $status = tsStatus();
+        if ($status['state'] === 'connected') {
+            $applied = tsCtl('up')['ok'];
+        }
+        tsRespond(200, array('success' => true, 'config' => $cfg, 'applied' => $applied));
+        break;
 }
