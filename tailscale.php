@@ -51,6 +51,9 @@
     #tailscalePlugin .ts-check input { margin: 0; float: none; }
     #tailscalePlugin label[for="ts-hostname"] { display: block; margin: 0.75rem 0 0.25rem; }
     #tailscalePlugin #ts-hostname { max-width: 20rem; margin-bottom: 0.25rem; }
+    #tailscalePlugin .ts-help { margin-left: 0.35rem; cursor: help; opacity: 0.7; }
+    #tailscalePlugin .ts-help:hover,
+    #tailscalePlugin .ts-help:focus { opacity: 1; }
     #tailscalePlugin .ts-log {
         max-height: 300px;
         overflow-y: auto;
@@ -97,6 +100,8 @@
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
+            <span class="ts-help" tabindex="0" role="note"
+                title="Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection.">&#9432;</span>
         </div>
 
         <label for="ts-hostname">Device name on your tailnet</label>
@@ -247,7 +252,16 @@
                     setTimeout(poll, 2000);
                 }
             })
-            .fail(function (xhr) { $('#ts-config-message').text(errorText(xhr)); });
+            .fail(function (xhr) {
+                $('#ts-config-message').text(errorText(xhr));
+                // Put checkboxes back to what's actually saved.
+                if ('auto_connect' in fields) {
+                    $('#ts-auto-connect').prop('checked', !fields.auto_connect);
+                }
+                if ('accept_routes' in fields) {
+                    $('#ts-accept-routes').prop('checked', !fields.accept_routes);
+                }
+            });
     }
 
     function loadLog() {

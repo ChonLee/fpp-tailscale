@@ -11,6 +11,8 @@ define('TS_CONFIG_FILE', '/home/fpp/media/config/plugin.fpp-tailscale');
 define('TS_LOG_FILE', '/home/fpp/media/logs/fpp-tailscale.log');
 define('TS_CTL', __DIR__ . '/scripts/ts-ctl.sh');
 
+require_once __DIR__ . '/lan-routes.php';
+
 function tsRespond($code, $data)
 {
     http_response_code($code);
@@ -85,9 +87,24 @@ function tsDecodeStatus($out)
 }
 
 /*
- * Read-only status: one `tailscale status --json` call, no side effects.
- * Non-root users may read status, so sudo is only a fallback.
+ * Decoded `tailscale status --json`, or null with $error set. Non-root users
+ * may read status, so sudo is only a fallback.
  */
+function tsStatusJson($bin, &$error)
+{
+    $json = tsDecodeStatus(tsRun(escapeshellarg($bin) . ' status --json 2>/dev/null'));
+    if ($json === null) {
+        $out = tsRun('sudo -n ' . escapeshellarg($bin) . ' status --json 2>&1');
+        $json = tsDecodeStatus($out);
+        if ($json === null) {
+            $lines = explode("\n", trim($out));
+            $error = $lines[0];
+        }
+    }
+    return $json;
+}
+
+// Read-only status: one `tailscale status --json` call, no side effects.
 function tsStatus()
 {
     $bin = tsBin();
@@ -95,14 +112,9 @@ function tsStatus()
         return array('state' => 'not_installed');
     }
 
-    $json = tsDecodeStatus(tsRun(escapeshellarg($bin) . ' status --json 2>/dev/null'));
+    $json = tsStatusJson($bin, $error);
     if ($json === null) {
-        $out = tsRun('sudo -n ' . escapeshellarg($bin) . ' status --json 2>&1');
-        $json = tsDecodeStatus($out);
-        if ($json === null) {
-            $lines = explode("\n", trim($out));
-            return array('state' => 'daemon_down', 'message' => $lines[0]);
-        }
+        return array('state' => 'daemon_down', 'message' => $error);
     }
 
     $self = (isset($json['Self']) && is_array($json['Self'])) ? $json['Self'] : array();
@@ -247,6 +259,20 @@ switch ($action) {
         foreach (array('auto_connect', 'accept_routes') as $key) {
             if (array_key_exists($key, $input)) {
                 $cfg[$key] = filter_var($input[$key], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        // Refuse routes that cover this FPP's own LAN: accepting them cuts the
+        // FPP off from its local network. ts-ctl.sh checks again on every
+        // connect, since the routes are only known once connected.
+        if (!empty($input['accept_routes']) && $cfg['accept_routes'] && tsBin() !== null) {
+            $conflicts = tsRouteConflicts(tsStatusJson(tsBin(), $error));
+            if ($conflicts) {
+                tsRespond(409, array(
+                    'success' => false,
+                    'message' => 'Not turned on: ' . implode('; ', $conflicts)
+                        . '. Accepting that route would cut this FPP off from your local network.',
+                ));
             }
         }
         if (array_key_exists('hostname', $input)) {
