@@ -37,6 +37,10 @@ else
             $SUDO apt-get purge -y tailscale-archive-keyring >> "$LOG_FILE" 2>&1
         fi
         $SUDO rm -f "$APT_LIST" "$APT_KEYRING" "$APT_PIN" "$LEGACY_APT_KEYRING"
+        # apt's cached copies of that source's package lists, and the
+        # downloaded package.
+        $SUDO rm -f /var/lib/apt/lists/pkgs.tailscale.com_* \
+            /var/cache/apt/archives/tailscale_*.deb /var/cache/apt/archives/tailscale-archive-keyring_*.deb
     fi
 
     # FPP's own network settings for tailscale0, if any were saved on its
