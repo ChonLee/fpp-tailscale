@@ -1,440 +1,320 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Tailscale Management</title>
-    <style>
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-            border-bottom: 2px solid #4CAF50;
-            padding-bottom: 10px;
-        }
-        .status-box {
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-            border-left: 4px solid #2196F3;
-            background-color: #E3F2FD;
-            color: #333;
-        }
-        .status-box.connected {
-            border-left-color: #4CAF50;
-            background-color: #E8F5E9;
-            color: #333;
-        }
-        .status-box.disconnected {
-            border-left-color: #F44336;
-            background-color: #FFEBEE;
-            color: #333;
-        }
-        .button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            margin: 5px;
-        }
-        .button:hover {
-            background-color: #45a049;
-        }
-        .button.secondary {
-            background-color: #2196F3;
-        }
-        .button.secondary:hover {
-            background-color: #0b7dda;
-        }
-        .button.danger {
-            background-color: #F44336;
-        }
-        .button.danger:hover {
-            background-color: #da190b;
-        }
-        .form-group {
-            margin: 15px 0;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        .form-group input[type="text"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .form-group input[type="checkbox"] {
-            margin-right: 8px;
-        }
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-        }
-        .info-table td {
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-        }
-        .info-table td:first-child {
-            font-weight: bold;
-            width: 30%;
-            color: #555;
-        }
-        .auth-url {
-            background-color: #FFF9C4;
-            color: #333;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 15px 0;
-            word-break: break-all;
-        }
-        .auth-url a {
-            color: #1976D2;
-            text-decoration: none;
-        }
-        .auth-url a:hover {
-            text-decoration: underline;
-        }
-        .log-box {
-            background-color: #263238;
-            color: #AED581;
-            padding: 15px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            max-height: 300px;
-            overflow-y: auto;
-            margin: 15px 0;
-        }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4CAF50;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔐 Tailscale VPN Management</h1>
-        
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Loading Tailscale status...</p>
+<!--
+  Tailscale plugin page. FPP includes this inside its own page (menu.inc wrap=1),
+  so it is an HTML fragment: no doctype/html/head/body. JS must work with
+  jQuery 3.7 (FPP 7-9) and 4.0 (FPP 10). FPP 7's Bootstrap build lacks most
+  utility classes (d-none, small, table-sm...), so layout and show/hide use the
+  scoped styles below and jQuery .toggle(), not Bootstrap utilities.
+-->
+<style>
+    #tailscalePlugin .backdrop { margin-bottom: 1rem; }
+    #tailscalePlugin .ts-gap { margin-bottom: 0.75rem; }
+    #tailscalePlugin .ts-note { font-size: 0.875em; }
+    #tailscalePlugin .ts-status {
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid;
+        border-radius: 0.375rem;
+    }
+    #tailscalePlugin .ts-status * { color: inherit; }
+    #tailscalePlugin .ts-ok {
+        color: var(--bs-success-text-emphasis, #0a3622);
+        background-color: var(--bs-success-bg-subtle, #d1e7dd);
+        border-color: var(--bs-success-border-subtle, #a3cfbb);
+    }
+    #tailscalePlugin .ts-warn {
+        color: var(--bs-warning-text-emphasis, #664d03);
+        background-color: var(--bs-warning-bg-subtle, #fff3cd);
+        border-color: var(--bs-warning-border-subtle, #ffe69c);
+    }
+    #tailscalePlugin .ts-info {
+        color: var(--bs-info-text-emphasis, #055160);
+        background-color: var(--bs-info-bg-subtle, #cff4fc);
+        border-color: var(--bs-info-border-subtle, #9eeaf9);
+    }
+    #tailscalePlugin .ts-muted {
+        color: var(--bs-secondary-text-emphasis, #2b2f32);
+        background-color: var(--bs-secondary-bg-subtle, #e2e3e5);
+        border-color: var(--bs-secondary-border-subtle, #c4c8cb);
+    }
+    #tailscalePlugin .ts-error {
+        color: var(--bs-danger-text-emphasis, #58151c);
+        background-color: var(--bs-danger-bg-subtle, #f8d7da);
+        border-color: var(--bs-danger-border-subtle, #f1aeb5);
+    }
+    #tailscalePlugin #ts-info { max-width: 40rem; margin-bottom: 0.75rem; }
+    #tailscalePlugin #ts-info th,
+    #tailscalePlugin #ts-info td { padding: 0.25rem 0.5rem; }
+    #tailscalePlugin #ts-info th { width: 35%; }
+    #tailscalePlugin #ts-auth-link { word-break: break-all; }
+    #tailscalePlugin .ts-check { margin-bottom: 0.5rem; }
+    #tailscalePlugin .ts-check label { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    #tailscalePlugin .ts-check input { margin: 0; float: none; }
+    #tailscalePlugin label[for="ts-hostname"] { display: block; margin: 0.75rem 0 0.25rem; }
+    #tailscalePlugin #ts-hostname { max-width: 20rem; margin-bottom: 0.25rem; }
+    #tailscalePlugin .ts-log {
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 0.75rem;
+        border: 1px solid var(--bs-border-color, #ccc);
+        border-radius: 0.25rem;
+        background-color: var(--bs-tertiary-bg, transparent);
+    }
+</style>
+
+<div id="tailscalePlugin">
+    <div class="backdrop">
+        <h2>Connection</h2>
+        <div id="ts-status" class="ts-status ts-muted" role="status">Loading Tailscale status...</div>
+
+        <table id="ts-info" class="table" style="display: none">
+            <tbody>
+                <tr><th scope="row">Tailscale IP</th><td id="ts-ip"></td></tr>
+                <tr><th scope="row">Hostname</th><td id="ts-name"></td></tr>
+                <tr><th scope="row">MagicDNS name</th><td id="ts-dns"></td></tr>
+            </tbody>
+        </table>
+
+        <div id="ts-auth" class="ts-gap" style="display: none">
+            <a id="ts-auth-link" href="#" target="_blank" rel="noopener"></a>
         </div>
-        
-        <div id="content" style="display:none;">
-            <!-- Status Section -->
-            <div id="status-section">
-                <h2>Connection Status</h2>
-                <div id="status-box" class="status-box">
-                    <p id="status-text">Checking status...</p>
-                </div>
-                
-                <div id="connection-info" style="display:none;">
-                    <table class="info-table">
-                        <tr>
-                            <td>Tailscale IP:</td>
-                            <td id="tailscale-ip">-</td>
-                        </tr>
-                        <tr>
-                            <td>Hostname:</td>
-                            <td id="hostname">-</td>
-                        </tr>
-                        <tr>
-                            <td>Status:</td>
-                            <td id="connection-status">-</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <div id="auth-url-box" class="auth-url" style="display:none;">
-                    <p>Click the link below to authenticate this device with your Tailscale account:</p>
-                    <a id="auth-url-link" href="#" target="_blank" style="word-break:break-all;">Open Tailscale Authentication</a>
-                </div>
-                
-                <div>
-                    <button id="btn-authenticate" class="button" onclick="authenticateTailscale()" style="display:none;">🔑 Authenticate</button>
-                    <button id="btn-connect" class="button" onclick="connectTailscale()">Connect</button>
-                    <button id="btn-disconnect" class="button danger" onclick="disconnectTailscale()">Disconnect</button>
-                    <button id="btn-reauth" class="button secondary" onclick="forceReauthenticate()" style="display:none;">🔄 Force Re-authenticate</button>
-                    <button id="btn-refresh" class="button secondary" onclick="refreshStatus()">Refresh Status</button>
-                </div>
-            </div>
-            
-            <!-- Configuration Section -->
-            <div id="config-section">
-                <h2>Configuration</h2>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="auto-connect" onchange="saveConfig()">
-                        Auto-connect on boot
-                    </label>
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="accept-routes" onchange="saveConfig()">
-                        Accept subnet routes
-                    </label>
-                </div>
-                
-                <div class="form-group">
-                    <label for="hostname-input">Device Hostname:</label>
-                    <input type="text" id="hostname-input" placeholder="fpp-player" value="fpp-player">
-                    <small id="system-hostname-info" style="display:block; margin-top: 5px; color: #666;">
-                        Current system hostname: <strong id="system-hostname">Loading...</strong>
-                        <button class="button secondary" onclick="useSystemHostname()" style="padding: 5px 10px; font-size: 12px; margin-left: 10px;">Use System Hostname</button>
-                    </small>
-                    <button class="button secondary" onclick="saveConfig()" style="margin-top: 10px;">Save Configuration</button>
-                </div>
-            </div>
-            
-            <!-- Logs Section -->
-            <div id="logs-section">
-                <h2>Recent Logs</h2>
-                <div id="log-content" class="log-box">
-                    No logs available
-                </div>
-                <button class="button secondary" onclick="refreshLogs()">Refresh Logs</button>
-            </div>
+
+        <div class="ts-gap">
+            <button type="button" id="ts-connect" class="buttons btn-success" style="display: none">Connect</button>
+            <button type="button" id="ts-disconnect" class="buttons btn-outline-danger" style="display: none">Disconnect</button>
+            <button type="button" id="ts-reauth" class="buttons" style="display: none">Force re-authenticate</button>
+            <button type="button" id="ts-refresh" class="buttons">Refresh</button>
         </div>
+        <div id="ts-message" class="ts-note"></div>
     </div>
 
-    <script>
-        var apiBase = 'plugin.php?plugin=fpp-tailscale&nopage=1&page=api-handler.php';
-        var cachedAuthUrl = null;
-        
-        // Load status on page load
-        jQuery(document).ready(function($) {
-            loadConfig();
-            refreshStatus();
+    <div class="backdrop">
+        <h2>Configuration</h2>
+        <div class="ts-check">
+            <label><input type="checkbox" class="form-check-input" id="ts-auto-connect"> Auto-connect when FPP starts</label>
+        </div>
+        <div class="ts-check">
+            <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
+        </div>
+
+        <label for="ts-hostname">Device name on your tailnet</label>
+        <input type="text" id="ts-hostname" class="form-control" maxlength="63" autocomplete="off">
+        <div class="ts-note ts-gap">System hostname: <strong id="ts-system-hostname"></strong>. Leave blank to use it.</div>
+        <button type="button" id="ts-save-hostname" class="buttons btn-success">Save name</button>
+        <button type="button" id="ts-use-system" class="buttons">Use system hostname</button>
+        <div id="ts-config-message" class="ts-note" style="margin-top: 0.5rem"></div>
+    </div>
+
+    <div class="backdrop">
+        <h2>Recent log</h2>
+        <div id="ts-log" class="ts-log ts-gap">Loading...</div>
+        <button type="button" id="ts-refresh-log" class="buttons">Refresh log</button>
+    </div>
+</div>
+
+<script>
+(function ($) {
+    'use strict';
+
+    var API = 'plugin.php?plugin=fpp-tailscale&nopage=1&page=api-handler.php&action=';
+    var FAST_POLL_MS = 3000;
+    var SLOW_POLL_MS = 30000;
+
+    // How each backend state is shown. `fast` polls every 3s, so the page
+    // notices a finished login or approval quickly.
+    var VIEWS = {
+        connected:      { cls: 'ts-ok',   title: 'Connected to Tailscale', buttons: ['disconnect'] },
+        needs_auth:     { cls: 'ts-warn',   title: 'Login required', text: 'Click Connect to get a login link.', buttons: ['connect'], fast: true },
+        needs_approval: { cls: 'ts-warn',   title: 'Waiting for approval', text: 'Approve this device in the Tailscale admin console.', buttons: ['reauth'], fast: true },
+        disconnected:   { cls: 'ts-muted', title: 'Disconnected', text: 'Logged in to Tailscale but not connected.', buttons: ['connect', 'reauth'] },
+        starting:       { cls: 'ts-info',      title: 'Connecting...', buttons: ['reauth'], fast: true },
+        daemon_down:    { cls: 'ts-error',    title: 'The Tailscale service is not running', text: 'Connect will try to start it.', buttons: ['connect'] },
+        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin, or restart FPP to let it reinstall Tailscale.', buttons: [] }
+    };
+
+    var pollTimer = null;
+    var lastState = null;
+    var busy = false;
+
+    function errorText(xhr) {
+        if (xhr.responseJSON && xhr.responseJSON.message) {
+            return xhr.responseJSON.message;
+        }
+        return 'Request failed (' + (xhr.status || 'no response') + ')';
+    }
+
+    function schedulePoll() {
+        clearTimeout(pollTimer);
+        if (document.hidden) {
+            return;
+        }
+        var view = VIEWS[lastState];
+        pollTimer = setTimeout(poll, view && view.fast ? FAST_POLL_MS : SLOW_POLL_MS);
+    }
+
+    function render(status) {
+        lastState = status.state;
+        var view = VIEWS[status.state] || VIEWS.starting;
+        var hasAuthUrl = status.state === 'needs_auth' && /^https:\/\//.test(status.auth_url || '');
+        var text = view.text || '';
+        if (hasAuthUrl) {
+            text = 'Open this link and sign in. This page updates by itself when you are done.';
+        } else if (status.state === 'daemon_down' && status.message) {
+            text += ' (' + status.message + ')';
+        }
+
+        var $status = $('#ts-status').attr('class', 'ts-status ' + view.cls).empty();
+        $status.append($('<strong>').text(view.title));
+        if (text) {
+            $status.append($('<div class="ts-note">').text(text));
+        }
+
+        var connected = status.state === 'connected';
+        $('#ts-info').toggle(connected);
+        if (connected) {
+            $('#ts-ip').text(status.ip || '-');
+            $('#ts-name').text(status.hostname || '-');
+            $('#ts-dns').text(status.dns_name || '-');
+        }
+
+        $('#ts-auth').toggle(hasAuthUrl);
+        if (hasAuthUrl) {
+            $('#ts-auth-link').attr('href', status.auth_url).text(status.auth_url);
+        }
+
+        // With a login link showing, Connect would start a new login and make the
+        // link stale, so offer re-auth instead.
+        var buttons = hasAuthUrl ? ['reauth'] : view.buttons;
+        ['connect', 'disconnect', 'reauth'].forEach(function (name) {
+            $('#ts-' + name).toggle(buttons.indexOf(name) !== -1);
         });
 
-        function loadConfig() {
-            // Get system hostname first
-            jQuery.get(apiBase + '&action=getSystemInfo', function(sysInfo) {
-                if (sysInfo.success) {
-                    var systemHostname = sysInfo.hostname;
-                    jQuery('#system-hostname').text(systemHostname);
-                    
-                    // Then load saved config
-                    jQuery.get(apiBase + '&action=getConfig', function(data) {
-                        if (data.success) {
-                            jQuery('#auto-connect').prop('checked', data.config.auto_connect);
-                            jQuery('#accept-routes').prop('checked', data.config.accept_routes);
-                            
-                            // If saved hostname is empty or default, use system hostname
-                            var savedHostname = data.config.hostname;
-                            if (!savedHostname || savedHostname === 'fpp-player') {
-                                jQuery('#hostname-input').val(systemHostname);
-                            } else {
-                                jQuery('#hostname-input').val(savedHostname);
-                            }
-                        }
-                    });
-                }
+        schedulePoll();
+    }
+
+    function poll() {
+        if (busy) {
+            return schedulePoll();
+        }
+        $.ajax({ url: API + 'status', dataType: 'json', cache: false })
+            .done(function (data) { render(data.status); })
+            .fail(function (xhr) {
+                $('#ts-message').text(errorText(xhr));
+                schedulePoll();
             });
-        }
+    }
 
-        function useSystemHostname() {
-            var systemHostname = jQuery('#system-hostname').text();
-            jQuery('#hostname-input').val(systemHostname);
-            saveConfig();
-        }
+    function setBusy(on, message) {
+        busy = on;
+        $('#tailscalePlugin button').prop('disabled', on);
+        $('#ts-message').text(message || '');
+    }
 
-        function saveConfig() {
-            const config = {
-                auto_connect: jQuery('#auto-connect').is(':checked'),
-                accept_routes: jQuery('#accept-routes').is(':checked'),
-                hostname: jQuery('#hostname-input').val()
-            };
-            
-            jQuery.ajax({
-                url: apiBase + '&action=saveConfig',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(config),
-                dataType: 'json',
-                success: function(data) {
-                    if (data.success) {
-                        alert('Configuration saved successfully!');
-                    } else {
-                        alert('Error saving configuration: ' + data.message);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    alert('Error saving configuration: ' + error);
-                    console.error('Save error:', xhr.responseText);
+    function runAction(action, workingText, confirmText) {
+        if (confirmText && !window.confirm(confirmText)) {
+            return;
+        }
+        setBusy(true, workingText);
+        var message = '';
+        $.ajax({ url: API + action, method: 'POST', dataType: 'json' })
+            .done(function (data) { render(data.status); })
+            .fail(function (xhr) {
+                message = errorText(xhr);
+                if (xhr.responseJSON && xhr.responseJSON.status) {
+                    render(xhr.responseJSON.status);
                 }
+            })
+            .always(function () {
+                setBusy(false, message);
+                loadLog();
             });
-        }
+    }
 
-        function refreshStatus() {
-            jQuery.get(apiBase + '&action=getStatus', function(data) {
-                jQuery('#loading').hide();
-                jQuery('#content').show();
-                
-                if (data.success) {
-                    const status = data.status;
-
-                    if (status.connected) {
-                        // Successfully connected — clear any cached auth URL
-                        cachedAuthUrl = null;
-                        jQuery('#status-box').removeClass('disconnected').addClass('connected');
-                        jQuery('#status-text').html('<strong>Connected to Tailscale</strong>');
-                        jQuery('#connection-info').show();
-                        jQuery('#tailscale-ip').text(status.ip || 'N/A');
-                        jQuery('#hostname').text(status.hostname || 'N/A');
-                        jQuery('#connection-status').text(status.status || 'Connected');
-                        jQuery('#btn-authenticate').hide();
-                        jQuery('#btn-connect').hide();
-                        jQuery('#btn-reauth').hide();
-                        jQuery('#btn-disconnect').show();
-                        jQuery('#auth-url-box').hide();
-                    } else {
-                        jQuery('#status-box').removeClass('connected').addClass('disconnected');
-                        jQuery('#connection-info').hide();
-                        jQuery('#btn-disconnect').hide();
-
-                        // Cache auth URL when received so it survives auto-refreshes
-                        if (status.auth_url) {
-                            cachedAuthUrl = status.auth_url;
-                        }
-
-                        if (cachedAuthUrl) {
-                            jQuery('#status-text').html('<strong>Authentication Required</strong><br><small>Authenticate to connect this device to your Tailscale network</small>');
-                            jQuery('#auth-url-link').attr('href', cachedAuthUrl);
-                            jQuery('#auth-url-box').show();
-                            jQuery('#btn-authenticate').hide();
-                            jQuery('#btn-connect').hide();
-                            jQuery('#btn-reauth').show();
-                        } else {
-                            jQuery('#status-text').html('<strong>Disconnected</strong><br><small>' + (status.status || 'Ready to connect') + '</small>');
-                            jQuery('#btn-authenticate').hide();
-                            jQuery('#btn-connect').show();
-                            jQuery('#btn-reauth').show();
-                            jQuery('#auth-url-box').hide();
-                        }
-                    }
-                } else {
-                    jQuery('#status-box').removeClass('connected').addClass('disconnected');
-                    jQuery('#status-text').html('<strong>Error:</strong> ' + (data.message || 'Unknown error'));
+    function saveConfig(fields) {
+        $('#ts-config-message').text('Saving...');
+        $.ajax({
+            url: API + 'saveConfig',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(fields),
+            dataType: 'json'
+        })
+            .done(function (data) {
+                $('#ts-config-message').text(data.applied ? 'Saved and applied.' : 'Saved.');
+                if (data.applied) {
+                    setTimeout(poll, 2000);
                 }
-            }).fail(function(xhr, status, error) {
-                jQuery('#loading').hide();
-                jQuery('#content').show();
-                jQuery('#status-box').removeClass('connected').addClass('disconnected');
-                jQuery('#status-text').html('<strong>Error loading status:</strong> ' + error);
-                console.error('API Error:', xhr.responseText);
-            });
-        }
+            })
+            .fail(function (xhr) { $('#ts-config-message').text(errorText(xhr)); });
+    }
 
-        function authenticateTailscale() {
-            jQuery('#status-text').html('Generating authentication URL...');
-            jQuery.post(apiBase + '&action=connect', function(data) {
-                if (data.auth_url) {
-                    cachedAuthUrl = data.auth_url;
-                    jQuery('#auth-url-link').attr('href', cachedAuthUrl);
-                    jQuery('#auth-url-box').show();
-                    window.open(cachedAuthUrl, '_blank');
-                    setTimeout(refreshStatus, 10000);
-                } else if (data.success) {
-                    setTimeout(refreshStatus, 2000);
-                } else {
-                    alert('Error: ' + data.message);
-                    refreshStatus();
-                }
-            });
-        }
+    function loadLog() {
+        $.ajax({ url: API + 'logs', dataType: 'json', cache: false })
+            .done(function (data) {
+                var $log = $('#ts-log').text(data.logs || 'No log entries yet.');
+                $log.scrollTop($log[0].scrollHeight);
+            })
+            .fail(function (xhr) { $('#ts-log').text(errorText(xhr)); });
+    }
 
-        function forceReauthenticate() {
-            if (confirm('This will log out and generate a new authentication URL.\n\nUse this if your device was revoked from Tailscale admin.\n\nContinue?')) {
-                jQuery('#status-text').html('Logging out and generating new auth URL...');
-                
-                // Call logout action first
-                jQuery.post(apiBase + '&action=logout', function(logoutData) {
-                    // Then get new auth URL
-                    setTimeout(function() {
-                        authenticateTailscale();
-                    }, 2000);
-                });
+    function init() {
+        $.ajax({ url: API + 'state', dataType: 'json', cache: false })
+            .done(function (data) {
+                $('#ts-auto-connect').prop('checked', data.config.auto_connect);
+                $('#ts-accept-routes').prop('checked', data.config.accept_routes);
+                $('#ts-hostname').val(data.config.hostname).attr('placeholder', data.system_hostname);
+                $('#ts-system-hostname').text(data.system_hostname);
+                render(data.status);
+            })
+            .fail(function (xhr) {
+                $('#ts-status').attr('class', 'ts-status ts-error').text('Could not load status: ' + errorText(xhr));
+            });
+        loadLog();
+
+        $('#ts-connect').on('click', function () {
+            runAction('connect', 'Connecting...');
+        });
+        $('#ts-disconnect').on('click', function () {
+            runAction('disconnect', 'Disconnecting...', 'Disconnect this FPP from Tailscale?');
+        });
+        $('#ts-reauth').on('click', function () {
+            runAction('reauth', 'Logging out and getting a new login link...',
+                'This logs the device out of Tailscale and creates a new login link.\n\n' +
+                'Use it if the device was removed or expired in the Tailscale admin console. Continue?');
+        });
+        $('#ts-refresh').on('click', poll);
+        $('#ts-refresh-log').on('click', loadLog);
+
+        $('#ts-auto-connect').on('change', function () {
+            saveConfig({ auto_connect: this.checked });
+        });
+        $('#ts-accept-routes').on('change', function () {
+            saveConfig({ accept_routes: this.checked });
+        });
+        $('#ts-save-hostname').on('click', function () {
+            saveConfig({ hostname: $('#ts-hostname').val().trim() });
+        });
+        $('#ts-hostname').on('keydown', function (e) {
+            if (e.key === 'Enter') {
+                saveConfig({ hostname: $(this).val().trim() });
             }
-        }
+        });
+        $('#ts-use-system').on('click', function () {
+            $('#ts-hostname').val('');
+            saveConfig({ hostname: '' });
+        });
 
-        function connectTailscale() {
-            jQuery('#status-text').html('Connecting to Tailscale...');
-            jQuery.post(apiBase + '&action=connect', function(data) {
-                if (data.auth_url) {
-                    // Authentication required - show the URL
-                    jQuery('#status-text').html('<strong>Authentication Required</strong>');
-                    jQuery('#auth-url-box').show();
-                    jQuery('#auth-url-link').attr('href', data.auth_url).text(data.auth_url);
-                    alert('Please authenticate using the link shown below');
-                } else if (data.success) {
-                    // Connected successfully
-                    setTimeout(refreshStatus, 2000);
-                } else {
-                    // Error
-                    alert('Error connecting: ' + data.message);
-                    refreshStatus();
-                }
-            });
-        }
-
-        function disconnectTailscale() {
-            if (confirm('Are you sure you want to disconnect from Tailscale?')) {
-                jQuery('#status-text').html('Disconnecting from Tailscale...');
-                jQuery.post(apiBase + '&action=disconnect', function(data) {
-                    if (data.success) {
-                        setTimeout(refreshStatus, 2000);
-                    } else {
-                        alert('Error disconnecting: ' + data.message);
-                        refreshStatus();
-                    }
-                });
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                clearTimeout(pollTimer);
+            } else {
+                poll();
             }
-        }
+        });
+    }
 
-        function refreshLogs() {
-            jQuery.get(apiBase + '&action=getLogs', function(data) {
-                if (data.success) {
-                    jQuery('#log-content').text(data.logs || 'No logs available');
-                    jQuery('#log-content').scrollTop(jQuery('#log-content')[0].scrollHeight);
-                } else {
-                    jQuery('#log-content').text('Error loading logs');
-                }
-            });
-        }
-        
-        // Auto-refresh status every 30 seconds
-        setInterval(refreshStatus, 30000);
-        
-        // Load logs initially
-        setTimeout(refreshLogs, 1000);
-    </script>
-</body>
-</html>
+    $(init);
+})(jQuery);
+</script>

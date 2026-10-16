@@ -1,44 +1,38 @@
 #!/bin/bash
 #
-# FPP Uninstall Script for Tailscale Plugin
-# Cleans up Tailscale installation completely
+# FPP uninstall script: logs out, removes Tailscale entirely, and deletes the
+# plugin's config and log.
 #
 
-LOG_FILE="/var/log/fpp-tailscale.log"
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/common.sh"
+LOG_ECHO=1
 
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
-}
+log "=== Uninstalling Tailscale plugin ==="
 
-log "=== Uninstalling Tailscale Plugin ==="
+kill_pending_up
 
-# Disconnect from Tailscale network
-log "Disconnecting from Tailscale..."
-sudo tailscale down 2>/dev/null || true
-sudo tailscale logout 2>/dev/null || true
+if command -v tailscale >/dev/null 2>&1; then
+    log "Logging out of Tailscale..."
+    timeout 15 $SUDO tailscale down >/dev/null 2>&1
+    timeout 15 $SUDO tailscale logout >/dev/null 2>&1
+fi
 
-# Stop and disable service
-log "Stopping tailscaled service..."
-sudo systemctl stop tailscaled 2>/dev/null || true
-sudo systemctl disable tailscaled 2>/dev/null || true
+log "Stopping tailscaled..."
+if [ -d /run/systemd/system ]; then
+    $SUDO systemctl disable --now tailscaled >/dev/null 2>&1
+fi
+$SUDO pkill -x tailscaled 2>/dev/null
 
-# Kill any running processes
-sudo pkill -x tailscaled 2>/dev/null || true
+if command -v apt-get >/dev/null 2>&1; then
+    log "Removing the Tailscale package..."
+    $SUDO apt-get purge -y tailscale >> "$LOG_FILE" 2>&1
+    # Apt source and key added by tailscale.com/install.sh
+    $SUDO rm -f /etc/apt/sources.list.d/tailscale.list \
+        /usr/share/keyrings/tailscale-archive-keyring.gpg
+fi
 
-# Remove Tailscale package
-log "Removing Tailscale package..."
-sudo apt-get remove -y tailscale 2>/dev/null || true
-sudo apt-get purge -y tailscale 2>/dev/null || true
-sudo apt-get autoremove -y 2>/dev/null || true
+log "Removing plugin configuration and logs..."
+rm -f "$CONFIG_FILE" "$CONFIG_FILE.tmp" "$LOG_FILE" "$OLD_LOG_FILE"
 
-# Clean up plugin config file
-log "Removing plugin configuration..."
-rm -f /home/fpp/media/config/plugin.fpp-tailscale
-
-# Clean up log file
-log "Cleaning up log files..."
-rm -f /var/log/fpp-tailscale.log
-
-log "=== Tailscale Plugin Fully Uninstalled ==="
-
+echo "=== Tailscale plugin uninstalled ==="
 exit 0
