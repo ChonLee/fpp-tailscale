@@ -3,7 +3,8 @@
   so it is an HTML fragment: no doctype/html/head/body. JS must work with
   jQuery 3.7 (FPP 7-9) and 4.0 (FPP 10). FPP 7's Bootstrap build lacks most
   utility classes (d-none, small, table-sm...), so layout and show/hide use the
-  scoped styles below and jQuery .toggle(), not Bootstrap utilities.
+  scoped styles below and jQuery .toggle(), not Bootstrap utilities. Colors
+  come from Bootstrap 5.3's CSS variables (in FPP 7-10), so both themes work.
 -->
 <style>
     #tailscalePlugin .backdrop { margin-bottom: 1rem; }
@@ -17,29 +18,29 @@
     }
     #tailscalePlugin .ts-status * { color: inherit; }
     #tailscalePlugin .ts-ok {
-        color: var(--bs-success-text-emphasis, #0a3622);
-        background-color: var(--bs-success-bg-subtle, #d1e7dd);
-        border-color: var(--bs-success-border-subtle, #a3cfbb);
+        color: var(--bs-success-text-emphasis);
+        background-color: var(--bs-success-bg-subtle);
+        border-color: var(--bs-success-border-subtle);
     }
     #tailscalePlugin .ts-warn {
-        color: var(--bs-warning-text-emphasis, #664d03);
-        background-color: var(--bs-warning-bg-subtle, #fff3cd);
-        border-color: var(--bs-warning-border-subtle, #ffe69c);
+        color: var(--bs-warning-text-emphasis);
+        background-color: var(--bs-warning-bg-subtle);
+        border-color: var(--bs-warning-border-subtle);
     }
     #tailscalePlugin .ts-info {
-        color: var(--bs-info-text-emphasis, #055160);
-        background-color: var(--bs-info-bg-subtle, #cff4fc);
-        border-color: var(--bs-info-border-subtle, #9eeaf9);
+        color: var(--bs-info-text-emphasis);
+        background-color: var(--bs-info-bg-subtle);
+        border-color: var(--bs-info-border-subtle);
     }
     #tailscalePlugin .ts-muted {
-        color: var(--bs-secondary-text-emphasis, #2b2f32);
-        background-color: var(--bs-secondary-bg-subtle, #e2e3e5);
-        border-color: var(--bs-secondary-border-subtle, #c4c8cb);
+        color: var(--bs-secondary-text-emphasis);
+        background-color: var(--bs-secondary-bg-subtle);
+        border-color: var(--bs-secondary-border-subtle);
     }
     #tailscalePlugin .ts-error {
-        color: var(--bs-danger-text-emphasis, #58151c);
-        background-color: var(--bs-danger-bg-subtle, #f8d7da);
-        border-color: var(--bs-danger-border-subtle, #f1aeb5);
+        color: var(--bs-danger-text-emphasis);
+        background-color: var(--bs-danger-bg-subtle);
+        border-color: var(--bs-danger-border-subtle);
     }
     #tailscalePlugin #ts-info { max-width: 40rem; margin-bottom: 0.75rem; }
     #tailscalePlugin #ts-info th,
@@ -51,19 +52,17 @@
     #tailscalePlugin .ts-check input { margin: 0; float: none; }
     #tailscalePlugin label[for="ts-hostname"] { display: block; margin: 0.75rem 0 0.25rem; }
     #tailscalePlugin #ts-hostname { max-width: 20rem; margin-bottom: 0.25rem; }
-    #tailscalePlugin .ts-help { margin-left: 0.35rem; cursor: help; opacity: 0.7; }
-    #tailscalePlugin .ts-help:hover,
-    #tailscalePlugin .ts-help:focus { opacity: 1; }
+    #tailscalePlugin .ts-check .ts-note { margin: 0.15rem 0 0 1.75rem; }
     #tailscalePlugin .ts-log {
-        max-height: 300px;
+        max-height: 20rem;
         overflow-y: auto;
         white-space: pre-wrap;
         font-family: monospace;
-        font-size: 12px;
+        font-size: 0.75rem;
         padding: 0.75rem;
-        border: 1px solid var(--bs-border-color, #ccc);
+        border: 1px solid var(--bs-border-color);
         border-radius: 0.25rem;
-        background-color: var(--bs-tertiary-bg, transparent);
+        background-color: var(--bs-tertiary-bg);
     }
 </style>
 
@@ -100,13 +99,11 @@
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
-            <span class="ts-help" tabindex="0" role="note"
-                title="Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection.">&#9432;</span>
+            <div class="ts-note">Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection.</div>
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-auto-update"> Keep Tailscale up to date automatically</label>
-            <span class="ts-help" tabindex="0" role="note"
-                title="Tailscale installs its own updates from pkgs.tailscale.com when a new version comes out. An update restarts the Tailscale connection for a few seconds; FPP and your show keep running. This is Tailscale's own setting, so the box shows what Tailscale is actually set to.">&#9432;</span>
+            <div class="ts-note">Tailscale installs its own updates from pkgs.tailscale.com when a new version comes out. An update restarts the Tailscale connection for a few seconds; FPP and your show keep running. This is Tailscale's own setting, so the box shows what Tailscale is actually set to, and it can only be changed while Tailscale is running.</div>
         </div>
 
         <label for="ts-hostname">Device name on your tailnet</label>

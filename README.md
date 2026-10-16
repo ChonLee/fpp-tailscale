@@ -97,14 +97,14 @@ hostname = "my-fpp-display"
 
 ## Troubleshooting
 
-- **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. It's trimmed automatically when it grows past 512KB.
+- **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it.
 - **Daemon log:** `sudo journalctl -u tailscaled -n 50`
 - **Page won't load:** `sudo tail /var/log/apache2/error.log`
 - **After an FPP OS upgrade:** if the upgrade removed Tailscale, the plugin reinstalls it the next time FPP starts.
 
 ## Uninstallation
 
-Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, removes any tailscale0 settings saved on FPP's Network page, and deletes the plugin's config and log.
+Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, removes any tailscale0 settings saved on FPP's Network page (FPP 10 and later), and deletes the plugin's config, data and log.
 
 If Tailscale was already installed before you installed the plugin, uninstalling leaves Tailscale installed, running and signed in. Only the plugin's own files are removed.
 
@@ -116,11 +116,12 @@ If you're connected to the FPP device through Tailscale, you'll lose that connec
 fpp-tailscale/
 ├── scripts/
 │   ├── common.sh          # Shared helpers: config, logging, install/start tailscaled
-│   ├── ts-ctl.sh          # Privileged actions: up / down / reauth (run via sudo)
+│   ├── ts-ctl.sh          # Privileged actions: up / down / reauth / auto-update (run via sudo)
 │   ├── postStart.sh       # FPP boot hook (backgrounds its work)
 │   ├── fpp_install.sh     # Install; FPP 10 re-runs it on every plugin update
 │   └── fpp_uninstall.sh   # Uninstall
 ├── api-handler.php        # JSON API used by the page
+├── lan-routes.php         # Refuses subnet routes that overlap this FPP's own LAN
 ├── tailscale.php          # UI (an HTML fragment inside FPP's page)
 ├── menu.inc               # Adds the page to FPP's Content Setup menu
 └── pluginInfo.json        # Plugin metadata and FPP version → branch mapping

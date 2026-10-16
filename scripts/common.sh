@@ -3,19 +3,27 @@
 # Shared helpers for the fpp-tailscale scripts. Source this file; don't run it.
 #
 
+# FPP's own paths (MEDIADIR, LOGDIR, CFGDIR), so a relocated media directory
+# works. The defaults are only for when FPP's common can't be sourced.
+: "${FPPDIR:=/opt/fpp}"
+# shellcheck source=/dev/null
+. "${FPPDIR}/scripts/common" 2>/dev/null || true
+: "${MEDIADIR:=/home/fpp/media}"
+: "${LOGDIR:=${MEDIADIR}/logs}"
+: "${CFGDIR:=${MEDIADIR}/config}"
+
 # FPP 8+ runs boot hooks via system(), which may not have sbin on PATH.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_FILE="/home/fpp/media/config/plugin.fpp-tailscale"
+CONFIG_FILE="$CFGDIR/plugin.fpp-tailscale"
+DATA_DIR="$MEDIADIR/plugindata/fpp-tailscale"
 # Present if Tailscale was installed before the plugin was; uninstall then
 # leaves Tailscale alone.
-PREINSTALLED_MARKER="$CONFIG_FILE.preinstalled"
-LOG_DIR="/home/fpp/media/logs"
+PREINSTALLED_MARKER="$DATA_DIR/preinstalled"
+LOG_DIR="$LOGDIR"
 # FPP's naming for plugin logs: plugin-<repoName>.log
 LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
-# Where older versions logged.
-OLD_LOG_FILES="/var/log/fpp-tailscale.log $LOG_DIR/fpp-tailscale.log"
 UP_PIDFILE="/run/fpp-tailscale-up.pid"
 TS_DEFAULTS="/etc/default/tailscaled"
 # Turns off tailscaled's diagnostic log upload to log.tailscale.com, as declared
@@ -24,6 +32,8 @@ NO_LOGS_FLAG="--no-logs-no-support"
 TS_STATE_DIR="/var/lib/tailscale"
 TS_SOCKET="/var/run/tailscale/tailscaled.sock"
 
+# Hooks run as root, so this is empty there. (Set after FPP's common, which
+# defines its own SUDO.)
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 
 # Set LOG_ECHO=1 to also print log lines to stdout (shown in FPP's plugin
@@ -34,28 +44,6 @@ log() {
     echo "$line" >> "$LOG_FILE" 2>/dev/null
     [ -n "$LOG_ECHO" ] && echo "$line"
     return 0
-}
-
-# Move history from older versions' log files into LOG_FILE. The old file is
-# only removed once its contents were copied.
-migrate_old_logs() {
-    local f
-    for f in $OLD_LOG_FILES; do
-        [ -f "$f" ] || continue
-        cat "$f" >> "$LOG_FILE" 2>/dev/null && rm -f "$f"
-    done
-}
-
-# Keep the log from growing forever (it lives on the SD card). Truncate in place
-# so a manually started tailscaled appending to it keeps working.
-trim_log() {
-    [ -f "$LOG_FILE" ] || return 0
-    local size
-    size=$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)
-    if [ "$size" -gt 524288 ]; then
-        tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && cat "$LOG_FILE.tmp" > "$LOG_FILE"
-        rm -f "$LOG_FILE.tmp"
-    fi
 }
 
 # cfg KEY [DEFAULT] - read a value from the plugin's INI config.

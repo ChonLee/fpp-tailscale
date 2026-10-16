@@ -7,8 +7,12 @@
  * Keep this PHP 7.4-compatible: FPP 7 runs on Debian bullseye.
  */
 
-define('TS_CONFIG_FILE', '/home/fpp/media/config/plugin.fpp-tailscale');
-define('TS_LOG_FILE', '/home/fpp/media/logs/plugin-fpp-tailscale.log');
+// FPP's directories, from its config.php (loaded by plugin.php), so a relocated
+// media directory works. The defaults are only a fallback.
+define('TS_CONFIG_FILE', rtrim(isset($settings['configDirectory']) ? $settings['configDirectory'] : '/home/fpp/media/config', '/')
+    . '/plugin.fpp-tailscale');
+define('TS_LOG_FILE', rtrim(isset($settings['logDirectory']) ? $settings['logDirectory'] : '/home/fpp/media/logs', '/')
+    . '/plugin-fpp-tailscale.log');
 define('TS_CTL', __DIR__ . '/scripts/ts-ctl.sh');
 
 require_once __DIR__ . '/lan-routes.php';

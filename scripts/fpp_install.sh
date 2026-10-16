@@ -9,7 +9,6 @@ LOG_ECHO=1
 
 mkdir -p "$LOG_DIR"
 
-migrate_old_logs
 touch "$LOG_FILE"
 chmod 644 "$LOG_FILE"
 id fpp >/dev/null 2>&1 && chown fpp:fpp "$LOG_FILE"
@@ -19,7 +18,9 @@ log "=== Installing Tailscale plugin ==="
 # On a first install (no config yet), note whether Tailscale was already here,
 # so uninstalling the plugin leaves it alone. Later runs are plugin updates.
 if [ ! -f "$CONFIG_FILE" ] && ts_installed; then
+    mkdir -p "$DATA_DIR"
     touch "$PREINSTALLED_MARKER"
+    id fpp >/dev/null 2>&1 && chown -R fpp:fpp "$DATA_DIR"
     log "Tailscale was already installed. Uninstalling the plugin will leave it in place."
 fi
 
