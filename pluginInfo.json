@@ -72,7 +72,7 @@
       }
     ],
     "closedCode": false,
-    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source."
+    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source, unless Tailscale was installed before the plugin: then it's left as it was."
   },
   "versions": [
     {

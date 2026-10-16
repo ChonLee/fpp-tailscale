@@ -8,6 +8,9 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_FILE="/home/fpp/media/config/plugin.fpp-tailscale"
+# Present if Tailscale was installed before the plugin was; uninstall then
+# leaves Tailscale alone.
+PREINSTALLED_MARKER="$CONFIG_FILE.preinstalled"
 LOG_DIR="/home/fpp/media/logs"
 # FPP's naming for plugin logs: plugin-<repoName>.log
 LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
@@ -93,11 +96,13 @@ ts_hostname() {
     echo "$h"
 }
 
+ts_installed() {
+    command -v tailscale >/dev/null 2>&1 && command -v tailscaled >/dev/null 2>&1
+}
+
 # Install Tailscale if it's missing (first install, or an FPPOS upgrade wiped it).
 ensure_installed() {
-    if command -v tailscale >/dev/null 2>&1 && command -v tailscaled >/dev/null 2>&1; then
-        return 0
-    fi
+    ts_installed && return 0
     log "Tailscale not found, installing from tailscale.com..."
     local script
     script=$(mktemp) || return 1

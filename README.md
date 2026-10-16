@@ -81,7 +81,9 @@ hostname = "my-fpp-display"
 
 ## Uninstallation
 
-Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, and deletes the plugin's config and log.
+Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, removes any tailscale0 settings saved on FPP's Network page, and deletes the plugin's config and log.
+
+If Tailscale was already installed before you installed the plugin, uninstalling leaves Tailscale installed, running and signed in. Only the plugin's own files are removed.
 
 If you're connected to the FPP device through Tailscale, you'll lose that connection.
 

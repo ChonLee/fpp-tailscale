@@ -16,6 +16,13 @@ id fpp >/dev/null 2>&1 && chown fpp:fpp "$LOG_FILE"
 
 log "=== Installing Tailscale plugin ==="
 
+# On a first install (no config yet), note whether Tailscale was already here,
+# so uninstalling the plugin leaves it alone. Later runs are plugin updates.
+if [ ! -f "$CONFIG_FILE" ] && ts_installed; then
+    touch "$PREINSTALLED_MARKER"
+    log "Tailscale was already installed. Uninstalling the plugin will leave it in place."
+fi
+
 if [ ! -f "$CONFIG_FILE" ]; then
     cat > "$CONFIG_FILE" <<EOF
 auto_connect = "false"
