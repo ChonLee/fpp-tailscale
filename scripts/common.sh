@@ -115,7 +115,7 @@ start_tailscaled_manually() {
         return 0
     fi
     $SUDO mkdir -p "$TS_STATE_DIR" "$(dirname "$TS_SOCKET")"
-    local mode
+    local mode pid
     local -a extra
     for mode in tun userspace; do
         extra=()
@@ -124,10 +124,16 @@ start_tailscaled_manually() {
         $SUDO setsid nohup tailscaled "${extra[@]}" \
             --state="$TS_STATE_DIR/tailscaled.state" \
             --socket="$TS_SOCKET" >> "$LOG_FILE" 2>&1 < /dev/null &
-        if wait_ready 8; then
-            log "tailscaled running ($mode networking)"
-            return 0
-        fi
+        pid=$!
+        for _ in $(seq 1 10); do
+            if ts_ready; then
+                log "tailscaled running ($mode networking)"
+                return 0
+            fi
+            # Stop waiting if it already exited (e.g. no /dev/net/tun).
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+        done
         $SUDO pkill -x tailscaled 2>/dev/null
         sleep 1
     done
