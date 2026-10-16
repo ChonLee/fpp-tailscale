@@ -161,9 +161,11 @@ kill_pending_up() {
     [ -f "$UP_PIDFILE" ] || return 0
     local pid
     pid=$(cat "$UP_PIDFILE" 2>/dev/null)
-    # Only kill it if the PID still belongs to our `tailscale up` (PIDs get reused).
-    if [ -n "$pid" ] && ps -p "$pid" -o args= 2>/dev/null | grep -q 'tailscale up'; then
-        $SUDO kill "$pid" 2>/dev/null
+    # Only kill it if the PID still belongs to our worker (PIDs get reused). It
+    # was started with setsid, so killing its process group also stops the
+    # `tailscale up` it's waiting on.
+    if [ -n "$pid" ] && ps -p "$pid" -o args= 2>/dev/null | grep -q 'ts-ctl.sh _up-worker'; then
+        $SUDO kill -- -"$pid" 2>/dev/null
     fi
     $SUDO rm -f "$UP_PIDFILE"
 }
