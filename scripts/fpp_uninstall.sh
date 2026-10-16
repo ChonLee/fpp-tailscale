@@ -32,7 +32,7 @@ if command -v apt-get >/dev/null 2>&1; then
 fi
 
 log "Removing plugin configuration and logs..."
-rm -f "$CONFIG_FILE" "$CONFIG_FILE.tmp" "$LOG_FILE" "$OLD_LOG_FILE"
+rm -f "$CONFIG_FILE" "$CONFIG_FILE.tmp" "$LOG_FILE" $OLD_LOG_FILES
 
 echo "=== Tailscale plugin uninstalled ==="
 exit 0

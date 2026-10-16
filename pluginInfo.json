@@ -35,7 +35,7 @@
         "about": "operator",
         "keptDays": null,
         "canDelete": false,
-        "where": "logs/fpp-tailscale.log"
+        "where": "logs/plugin-fpp-tailscale.log"
       },
       {
         "what": "this player's Tailscale identity and keys",

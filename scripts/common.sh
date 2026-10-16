@@ -9,8 +9,10 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_FILE="/home/fpp/media/config/plugin.fpp-tailscale"
 LOG_DIR="/home/fpp/media/logs"
-LOG_FILE="$LOG_DIR/fpp-tailscale.log"
-OLD_LOG_FILE="/var/log/fpp-tailscale.log"
+# FPP's naming for plugin logs: plugin-<repoName>.log
+LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
+# Where older versions logged.
+OLD_LOG_FILES="/var/log/fpp-tailscale.log $LOG_DIR/fpp-tailscale.log"
 UP_PIDFILE="/run/fpp-tailscale-up.pid"
 TS_DEFAULTS="/etc/default/tailscaled"
 # Turns off tailscaled's diagnostic log upload to log.tailscale.com, as declared
@@ -29,6 +31,16 @@ log() {
     echo "$line" >> "$LOG_FILE" 2>/dev/null
     [ -n "$LOG_ECHO" ] && echo "$line"
     return 0
+}
+
+# Move history from older versions' log files into LOG_FILE. The old file is
+# only removed once its contents were copied.
+migrate_old_logs() {
+    local f
+    for f in $OLD_LOG_FILES; do
+        [ -f "$f" ] || continue
+        cat "$f" >> "$LOG_FILE" 2>/dev/null && rm -f "$f"
+    done
 }
 
 # Keep the log from growing forever (it lives on the SD card). Truncate in place

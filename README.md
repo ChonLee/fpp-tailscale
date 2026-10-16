@@ -71,7 +71,7 @@ hostname = "my-fpp-display"
 
 ## Troubleshooting
 
-- **Plugin log:** `/home/fpp/media/logs/fpp-tailscale.log`. It's also shown at the bottom of the plugin page. It's trimmed automatically when it grows past 512KB.
+- **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. It's trimmed automatically when it grows past 512KB.
 - **Daemon log:** `sudo journalctl -u tailscaled -n 50`
 - **Page won't load:** `sudo tail /var/log/apache2/error.log`
 - **After an FPP OS upgrade:** if the upgrade removed Tailscale, the plugin reinstalls it the next time FPP starts.
