@@ -60,13 +60,13 @@ cfg() {
     local v=""
     if [ -f "$CONFIG_FILE" ]; then
         v=$(awk -v k="$1" '
-            /^[ \t]*[;#]/ { next }
+            found || /^[ \t]*[;#]/ { next }
             {
                 i = index($0, "="); if (i == 0) next
                 key = substr($0, 1, i - 1); gsub(/^[ \t]+|[ \t]+$/, "", key)
                 if (key != k) next
                 val = substr($0, i + 1); gsub(/^[ \t"]+|[ \t"\r]+$/, "", val)
-                print val; exit
+                print val; found = 1
             }' "$CONFIG_FILE")
     fi
     echo "${v:-$2}"
