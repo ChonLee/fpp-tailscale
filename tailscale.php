@@ -1,14 +1,56 @@
 <!--
   Tailscale plugin page. FPP includes this inside its own page (menu.inc wrap=1),
-  so it is an HTML fragment: no doctype/html/head/body. Styling comes from FPP's
-  Bootstrap 5.3 build; JS must work with jQuery 3.7 (FPP 7-9) and 4.0 (FPP 10).
+  so it is an HTML fragment: no doctype/html/head/body. JS must work with
+  jQuery 3.7 (FPP 7-9) and 4.0 (FPP 10). FPP 7's Bootstrap build lacks most
+  utility classes (d-none, small, table-sm...), so layout and show/hide use the
+  scoped styles below and jQuery .toggle(), not Bootstrap utilities.
 -->
 <style>
     #tailscalePlugin .backdrop { margin-bottom: 1rem; }
-    #tailscalePlugin #ts-info { max-width: 40rem; }
+    #tailscalePlugin .ts-gap { margin-bottom: 0.75rem; }
+    #tailscalePlugin .ts-note { font-size: 0.875em; }
+    #tailscalePlugin .ts-status {
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid;
+        border-radius: 0.375rem;
+    }
+    #tailscalePlugin .ts-status * { color: inherit; }
+    #tailscalePlugin .ts-ok {
+        color: var(--bs-success-text-emphasis, #0a3622);
+        background-color: var(--bs-success-bg-subtle, #d1e7dd);
+        border-color: var(--bs-success-border-subtle, #a3cfbb);
+    }
+    #tailscalePlugin .ts-warn {
+        color: var(--bs-warning-text-emphasis, #664d03);
+        background-color: var(--bs-warning-bg-subtle, #fff3cd);
+        border-color: var(--bs-warning-border-subtle, #ffe69c);
+    }
+    #tailscalePlugin .ts-info {
+        color: var(--bs-info-text-emphasis, #055160);
+        background-color: var(--bs-info-bg-subtle, #cff4fc);
+        border-color: var(--bs-info-border-subtle, #9eeaf9);
+    }
+    #tailscalePlugin .ts-muted {
+        color: var(--bs-secondary-text-emphasis, #2b2f32);
+        background-color: var(--bs-secondary-bg-subtle, #e2e3e5);
+        border-color: var(--bs-secondary-border-subtle, #c4c8cb);
+    }
+    #tailscalePlugin .ts-error {
+        color: var(--bs-danger-text-emphasis, #58151c);
+        background-color: var(--bs-danger-bg-subtle, #f8d7da);
+        border-color: var(--bs-danger-border-subtle, #f1aeb5);
+    }
+    #tailscalePlugin #ts-info { max-width: 40rem; margin-bottom: 0.75rem; }
+    #tailscalePlugin #ts-info th,
+    #tailscalePlugin #ts-info td { padding: 0.25rem 0.5rem; }
     #tailscalePlugin #ts-info th { width: 35%; }
     #tailscalePlugin #ts-auth-link { word-break: break-all; }
-    #tailscalePlugin #ts-hostname { max-width: 20rem; }
+    #tailscalePlugin .ts-check { margin-bottom: 0.5rem; }
+    #tailscalePlugin .ts-check label { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    #tailscalePlugin .ts-check input { margin: 0; float: none; }
+    #tailscalePlugin label[for="ts-hostname"] { display: block; margin: 0.75rem 0 0.25rem; }
+    #tailscalePlugin #ts-hostname { max-width: 20rem; margin-bottom: 0.25rem; }
     #tailscalePlugin .ts-log {
         max-height: 300px;
         overflow-y: auto;
@@ -25,9 +67,9 @@
 <div id="tailscalePlugin">
     <div class="backdrop">
         <h2>Connection</h2>
-        <div id="ts-status" class="alert alert-secondary" role="status">Loading Tailscale status...</div>
+        <div id="ts-status" class="ts-status ts-muted" role="status">Loading Tailscale status...</div>
 
-        <table id="ts-info" class="table table-sm d-none">
+        <table id="ts-info" class="table" style="display: none">
             <tbody>
                 <tr><th scope="row">Tailscale IP</th><td id="ts-ip"></td></tr>
                 <tr><th scope="row">Hostname</th><td id="ts-name"></td></tr>
@@ -35,41 +77,39 @@
             </tbody>
         </table>
 
-        <div id="ts-auth" class="d-none mb-3">
+        <div id="ts-auth" class="ts-gap" style="display: none">
             <a id="ts-auth-link" href="#" target="_blank" rel="noopener"></a>
         </div>
 
-        <div class="mb-2">
-            <button type="button" id="ts-connect" class="buttons btn-success d-none">Connect</button>
-            <button type="button" id="ts-disconnect" class="buttons btn-outline-danger d-none">Disconnect</button>
-            <button type="button" id="ts-reauth" class="buttons d-none">Force re-authenticate</button>
+        <div class="ts-gap">
+            <button type="button" id="ts-connect" class="buttons btn-success" style="display: none">Connect</button>
+            <button type="button" id="ts-disconnect" class="buttons btn-outline-danger" style="display: none">Disconnect</button>
+            <button type="button" id="ts-reauth" class="buttons" style="display: none">Force re-authenticate</button>
             <button type="button" id="ts-refresh" class="buttons">Refresh</button>
         </div>
-        <div id="ts-message" class="small"></div>
+        <div id="ts-message" class="ts-note"></div>
     </div>
 
     <div class="backdrop">
         <h2>Configuration</h2>
-        <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="ts-auto-connect">
-            <label class="form-check-label" for="ts-auto-connect">Auto-connect when FPP starts</label>
+        <div class="ts-check">
+            <label><input type="checkbox" class="form-check-input" id="ts-auto-connect"> Auto-connect when FPP starts</label>
         </div>
-        <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" id="ts-accept-routes">
-            <label class="form-check-label" for="ts-accept-routes">Accept subnet routes</label>
+        <div class="ts-check">
+            <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
         </div>
 
-        <label for="ts-hostname" class="form-label">Device name on your tailnet</label>
-        <input type="text" id="ts-hostname" class="form-control mb-1" maxlength="63" autocomplete="off">
-        <div class="small mb-2">System hostname: <strong id="ts-system-hostname"></strong>. Leave blank to use it.</div>
+        <label for="ts-hostname">Device name on your tailnet</label>
+        <input type="text" id="ts-hostname" class="form-control" maxlength="63" autocomplete="off">
+        <div class="ts-note ts-gap">System hostname: <strong id="ts-system-hostname"></strong>. Leave blank to use it.</div>
         <button type="button" id="ts-save-hostname" class="buttons btn-success">Save name</button>
         <button type="button" id="ts-use-system" class="buttons">Use system hostname</button>
-        <div id="ts-config-message" class="small mt-2"></div>
+        <div id="ts-config-message" class="ts-note" style="margin-top: 0.5rem"></div>
     </div>
 
     <div class="backdrop">
         <h2>Recent log</h2>
-        <div id="ts-log" class="ts-log mb-2">Loading...</div>
+        <div id="ts-log" class="ts-log ts-gap">Loading...</div>
         <button type="button" id="ts-refresh-log" class="buttons">Refresh log</button>
     </div>
 </div>
@@ -85,13 +125,13 @@
     // How each backend state is shown. `fast` polls every 3s, so the page
     // notices a finished login or approval quickly.
     var VIEWS = {
-        connected:      { cls: 'alert-success',   title: 'Connected to Tailscale', buttons: ['disconnect'] },
-        needs_auth:     { cls: 'alert-warning',   title: 'Login required', text: 'Click Connect to get a login link.', buttons: ['connect'], fast: true },
-        needs_approval: { cls: 'alert-warning',   title: 'Waiting for approval', text: 'Approve this device in the Tailscale admin console.', buttons: ['reauth'], fast: true },
-        disconnected:   { cls: 'alert-secondary', title: 'Disconnected', text: 'Logged in to Tailscale but not connected.', buttons: ['connect', 'reauth'] },
-        starting:       { cls: 'alert-info',      title: 'Connecting...', buttons: ['reauth'], fast: true },
-        daemon_down:    { cls: 'alert-danger',    title: 'The Tailscale service is not running', text: 'Connect will try to start it.', buttons: ['connect'] },
-        not_installed:  { cls: 'alert-danger',    title: 'Tailscale is not installed', text: 'Reinstall the plugin, or restart FPP to let it reinstall Tailscale.', buttons: [] }
+        connected:      { cls: 'ts-ok',   title: 'Connected to Tailscale', buttons: ['disconnect'] },
+        needs_auth:     { cls: 'ts-warn',   title: 'Login required', text: 'Click Connect to get a login link.', buttons: ['connect'], fast: true },
+        needs_approval: { cls: 'ts-warn',   title: 'Waiting for approval', text: 'Approve this device in the Tailscale admin console.', buttons: ['reauth'], fast: true },
+        disconnected:   { cls: 'ts-muted', title: 'Disconnected', text: 'Logged in to Tailscale but not connected.', buttons: ['connect', 'reauth'] },
+        starting:       { cls: 'ts-info',      title: 'Connecting...', buttons: ['reauth'], fast: true },
+        daemon_down:    { cls: 'ts-error',    title: 'The Tailscale service is not running', text: 'Connect will try to start it.', buttons: ['connect'] },
+        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin, or restart FPP to let it reinstall Tailscale.', buttons: [] }
     };
 
     var pollTimer = null;
@@ -125,21 +165,21 @@
             text += ' (' + status.message + ')';
         }
 
-        var $status = $('#ts-status').attr('class', 'alert ' + view.cls).empty();
+        var $status = $('#ts-status').attr('class', 'ts-status ' + view.cls).empty();
         $status.append($('<strong>').text(view.title));
         if (text) {
-            $status.append($('<div class="small">').text(text));
+            $status.append($('<div class="ts-note">').text(text));
         }
 
         var connected = status.state === 'connected';
-        $('#ts-info').toggleClass('d-none', !connected);
+        $('#ts-info').toggle(connected);
         if (connected) {
             $('#ts-ip').text(status.ip || '-');
             $('#ts-name').text(status.hostname || '-');
             $('#ts-dns').text(status.dns_name || '-');
         }
 
-        $('#ts-auth').toggleClass('d-none', !hasAuthUrl);
+        $('#ts-auth').toggle(hasAuthUrl);
         if (hasAuthUrl) {
             $('#ts-auth-link').attr('href', status.auth_url).text(status.auth_url);
         }
@@ -148,7 +188,7 @@
         // link stale, so offer re-auth instead.
         var buttons = hasAuthUrl ? ['reauth'] : view.buttons;
         ['connect', 'disconnect', 'reauth'].forEach(function (name) {
-            $('#ts-' + name).toggleClass('d-none', buttons.indexOf(name) === -1);
+            $('#ts-' + name).toggle(buttons.indexOf(name) !== -1);
         });
 
         schedulePoll();
@@ -229,7 +269,7 @@
                 render(data.status);
             })
             .fail(function (xhr) {
-                $('#ts-status').attr('class', 'alert alert-danger').text('Could not load status: ' + errorText(xhr));
+                $('#ts-status').attr('class', 'ts-status ts-error').text('Could not load status: ' + errorText(xhr));
             });
         loadLog();
 
