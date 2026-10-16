@@ -1,167 +1,110 @@
 # FPP Tailscale Plugin
 
-Manage Tailscale VPN connections directly from your Falcon Player (FPP) web interface for secure remote access to your display controller.
+Manage a Tailscale VPN connection from the Falcon Player (FPP) web interface, for secure remote access to your show controller.
+
+Works on FPP 7.x through 10.x.
 
 ## Features
 
-- 🔐 **Easy Authentication** - One-click authentication with Tailscale
-- 🔄 **Auto-Connect** - Automatically connect to Tailscale on system boot
-- 🌐 **Subnet Routes** - Accept subnet routes from your Tailscale network
-- ⚙️ **Custom Hostname** - Set custom hostname or use system hostname
-- 📊 **Real-time Status** - View connection status and Tailscale IP
-- 🔄 **Force Re-authenticate** - Re-authenticate when device is revoked
-- 📝 **Logs** - View recent Tailscale logs
+- **Web login**: click Connect and open the login link. The page notices when you're done.
+- **Auto-connect** when FPP starts
+- **Subnet routes**: optionally accept routes advertised on your tailnet
+- **Custom device name**, or use the system hostname
+- **Live status**: Tailscale IP, hostname and MagicDNS name
+- **Force re-authenticate** for devices that were removed or expired in the admin console
+- **Log viewer** for the plugin's recent activity
 
 ## Installation
 
 ### From FPP Plugin Manager
 
-1. Open FPP web interface
-2. Go to **Content Setup** → **Plugin Manager**
-3. Click **Install Plugin** tab
-4. Enter repository URL: `https://github.com/ChonLee/fpp-tailscale`
-5. Click **Install**
+1. Open the FPP web interface.
+2. Go to **Content Setup** → **Plugin Manager**.
+3. Paste this into the plugin URL box and click **Get Plugin Info**:
+   `https://raw.githubusercontent.com/ChonLee/fpp-tailscale/main/pluginInfo.json`
+4. Click **Install**.
+
+The install script downloads Tailscale from tailscale.com, so the FPP device needs internet access.
 
 ### Manual Installation
 
 ```bash
 cd /home/fpp/media/plugins
 git clone https://github.com/ChonLee/fpp-tailscale.git
-cd fpp-tailscale
-sudo bash scripts/fpp_install.sh
+sudo fpp-tailscale/scripts/fpp_install.sh
 ```
 
 ## Usage
 
-### First Time Setup
+### First-time setup
 
-1. Navigate to **Content Setup** → **Tailscale VPN** in FPP menu
-2. Wait for the page to load
-3. Click **🔑 Authenticate** button
-4. A new tab will open with Tailscale login
-5. Sign in with your Tailscale account
-6. Return to FPP and click **Refresh Status**
-7. You should now be connected!
+1. Open **Content Setup** → **Tailscale VPN**.
+2. Click **Connect**. A login link appears within a few seconds.
+3. Open the link and sign in to your Tailscale account.
+4. The page switches to **Connected** by itself and shows the device's Tailscale IP.
 
-### Auto-Connect on Boot
+If your tailnet requires device approval, the page shows **Waiting for approval** until an admin approves the device in the Tailscale admin console.
 
-1. Check **Auto-connect on boot** checkbox
-2. Settings save automatically
-3. FPP will now connect to Tailscale every time it starts
+### Auto-connect
 
-### Accept Subnet Routes
+With **Auto-connect when FPP starts** checked, the plugin runs `tailscale up` every time FPP starts. This happens in the background, so it doesn't slow FPP's startup.
 
-1. Check **Accept subnet routes** checkbox
-2. Settings save automatically
-3. Your FPP device can now access other devices on your Tailscale network
+With it unchecked, the plugin doesn't force a connection. Tailscale itself still remembers whether it was connected or disconnected, and restores that state on boot.
 
-### Custom Hostname
+### Subnet routes and device name
 
-- The plugin automatically uses your system hostname
-- Click **Use System Hostname** to sync with system
-- Or enter a custom hostname manually
+These settings save as soon as you change them. If Tailscale is connected, the change applies right away. Leave the device name blank to use the system hostname.
 
 ### Re-authenticating
 
-If your device is revoked from the Tailscale admin console:
-
-1. Click **🔄 Force Re-authenticate** button
-2. Confirm the prompt
-3. Authenticate in the new tab
-4. Return and refresh
+If the device was removed or its key expired in the Tailscale admin console, click **Force re-authenticate**. This logs the device out and gives you a new login link.
 
 ## Configuration
 
-Configuration is stored in: `/home/fpp/media/config/plugin.fpp-tailscale`
+Settings are stored in `/home/fpp/media/config/plugin.fpp-tailscale`:
 
-Example:
 ```ini
-; Tailscale Plugin Configuration
-auto_connect = true
-accept_routes = false
-hostname = my-fpp-display
+auto_connect = "true"
+accept_routes = "false"
+hostname = "my-fpp-display"
 ```
-
-## Requirements
-
-- FPP 7.0 or later
-- Internet connection for initial Tailscale installation
-- Tailscale account (free)
 
 ## Troubleshooting
 
-### Plugin pages won't load
-Check Apache error log:
-```bash
-sudo tail -f /var/log/apache2/error.log
-```
-
-### Daemon not starting
-Check logs:
-```bash
-sudo journalctl -u tailscaled -n 50
-```
-
-Or view in plugin:
-1. Navigate to plugin page
-2. Scroll to **Recent Logs** section
-
-### Settings won't save
-Ensure config directory is writable:
-```bash
-sudo chmod 777 /home/fpp/media/config
-```
-
-### Device shows disconnected after reboot
-Enable **Auto-connect on boot** in settings
+- **Plugin log:** `/home/fpp/media/logs/fpp-tailscale.log`. It's also shown at the bottom of the plugin page. It's trimmed automatically when it grows past 512KB.
+- **Daemon log:** `sudo journalctl -u tailscaled -n 50`
+- **Page won't load:** `sudo tail /var/log/apache2/error.log`
+- **After an FPP OS upgrade:** if the upgrade removed Tailscale, the plugin reinstalls it the next time FPP starts.
 
 ## Uninstallation
 
-### From Plugin Manager
-1. Go to **Content Setup** → **Plugin Manager**
-2. Find **Tailscale VPN**
-3. Click **Delete**
-4. Tailscale will be completely removed
+Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the device out of Tailscale, removes the Tailscale package and its apt source, and deletes the plugin's config and log.
 
-### Manual Uninstall
-```bash
-cd /home/fpp/media/plugins/fpp-tailscale
-sudo bash scripts/fpp_uninstall.sh
-sudo rm -rf /home/fpp/media/plugins/fpp-tailscale
-```
+If you're connected to the FPP device through Tailscale, you'll lose that connection.
 
 ## Development
 
-### File Structure
 ```
 fpp-tailscale/
-├── api/
-│   └── endpoints.php       # FPP API integration (required)
 ├── scripts/
-│   ├── fpp_install.sh     # Installation script
-│   ├── fpp_start.sh       # Startup script (runs on boot)
-│   └── fpp_uninstall.sh   # Uninstallation script
-├── api-handler.php        # Plugin API endpoints
-├── tailscale.php          # Main UI page
-├── menu.inc               # FPP menu integration
-├── pluginInfo.json        # Plugin metadata
-├── .gitattributes         # Git configuration (LF line endings)
-└── README.md
+│   ├── common.sh          # Shared helpers: config, logging, install/start tailscaled
+│   ├── ts-ctl.sh          # Privileged actions: up / down / reauth (run via sudo)
+│   ├── postStart.sh       # FPP boot hook (backgrounds its work)
+│   ├── fpp_install.sh     # Install; FPP 10 re-runs it on every plugin update
+│   └── fpp_uninstall.sh   # Uninstall
+├── api-handler.php        # JSON API used by the page
+├── tailscale.php          # UI (an HTML fragment inside FPP's page)
+├── menu.inc               # Adds the page to FPP's Content Setup menu
+└── pluginInfo.json        # Plugin metadata and FPP version → branch mapping
 ```
 
-### Key Files
+Compatibility rules (checked against FPP source at 7.0, 8.0, 9.5 and 10.2):
 
-- **api/endpoints.php** - Required by FPP's core API system
-- **api-handler.php** - Custom plugin API for web UI
-- **menu.inc** - Adds plugin to FPP's Content Setup menu
-- **tailscale.php** - Main plugin interface
-
-### Making Changes
-
-When developing, ensure:
-1. Scripts use LF line endings (not CRLF)
-2. Scripts are executable in git: `git update-index --chmod=+x scripts/*.sh`
-3. Test complete install/uninstall cycle
+- **PHP 7.4 syntax only.** FPP 7 runs PHP 7.4.
+- **jQuery calls must work in both 3.7 and 4.0.** FPP 10 ships jQuery 4.
+- **Bootstrap 5.3 classes** plus FPP's `buttons` class.
+- **Scripts use LF line endings** and are committed executable: `git update-index --chmod=+x scripts/*.sh`.
+- **`postStart.sh` must return immediately.** It runs inside fppd's startup.
 
 ## Credits
 
@@ -169,23 +112,7 @@ When developing, ensure:
 - Uses [Tailscale](https://tailscale.com/) for VPN connectivity
 - Created by [ChonLee](https://github.com/ChonLee)
 
-## License
-
-This project is open source. Feel free to use and modify as needed.
-
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/ChonLee/fpp-tailscale/issues)
 - **FPP Forums**: [FPP Community](https://falconchristmas.com)
-
-## Changelog
-
-### v1.0.0 (Initial Release)
-- ✅ Tailscale installation and management
-- ✅ Web-based authentication
-- ✅ Auto-connect on boot
-- ✅ Subnet route acceptance
-- ✅ Custom hostname support
-- ✅ Real-time status monitoring
-- ✅ Log viewing
-- ✅ Force re-authentication for revoked devices
