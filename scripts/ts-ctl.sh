@@ -27,7 +27,8 @@ up_worker() {
         log "Running: tailscale set --hostname=$host --accept-routes=false"
         tailscale set "--hostname=$host" --accept-routes=false || return
         log "Running: tailscale up"
-        timeout --foreground 600 tailscale up || return
+        timeout --foreground 600 tailscale up 2>&1 | redact
+        [ "${PIPESTATUS[0]}" -eq 0 ] || return
     else
         login_up "$host" || return
     fi
@@ -43,19 +44,20 @@ login_up() {
     local -a args=(up "--hostname=$1" --accept-routes=false) keep
     out=$(mktemp) || return
     log "Running: tailscale ${args[*]}"
-    timeout --foreground 600 tailscale "${args[@]}" 2>&1 | tee "$out"
+    timeout --foreground 600 tailscale "${args[@]}" 2>&1 | redact | tee "$out"
     rc=${PIPESTATUS[0]}
     if [ "$rc" -ne 0 ] && grep -q 'requires mentioning all' "$out"; then
         line=$(sed -n 's/^[[:space:]]*tailscale up //p' "$out" | head -n 1)
         read -r -a keep <<< "$line"
         if [ "${#keep[@]}" -gt 0 ] && plain_flags "${keep[@]}"; then
             log "Keeping Tailscale settings made outside the plugin. Running: tailscale up ${keep[*]}"
-            timeout --foreground 600 tailscale up "${keep[@]}"
+            timeout --foreground 600 tailscale up "${keep[@]}" 2>&1 | redact
+            rc=${PIPESTATUS[0]}
         else
             log "WARNING: resetting Tailscale settings made outside the plugin. Running: tailscale ${args[*]} --reset"
-            timeout --foreground 600 tailscale "${args[@]}" --reset
+            timeout --foreground 600 tailscale "${args[@]}" --reset 2>&1 | redact
+            rc=${PIPESTATUS[0]}
         fi
-        rc=$?
     fi
     rm -f "$out"
     return "$rc"

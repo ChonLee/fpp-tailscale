@@ -39,7 +39,7 @@
     ],
     "collects": [
       {
-        "what": "a log of connection events and sign-in links",
+        "what": "a log of connection events",
         "about": "operator",
         "keptDays": null,
         "canDelete": false,

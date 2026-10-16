@@ -97,7 +97,7 @@ hostname = "my-fpp-display"
 
 ## Troubleshooting
 
-- **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it.
+- **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it. Sign-in links are left out of it, because they work like a one-time password until used.
 - **Daemon log:** `sudo journalctl -u tailscaled -n 50`
 - **Page won't load:** `sudo tail /var/log/apache2/error.log`
 - **After an FPP OS upgrade:** if the upgrade removed Tailscale and auto-connect is on, the plugin reinstalls it the next time FPP starts. Otherwise, reinstall the plugin from the Plugin Manager.

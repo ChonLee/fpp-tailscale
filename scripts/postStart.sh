@@ -6,6 +6,9 @@
 
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/common.sh"
 
+# In case an update didn't re-run fpp_install.sh.
+redact_old_logs
+
 (
     log "=== FPP started, checking Tailscale ==="
     migrate_apt_source

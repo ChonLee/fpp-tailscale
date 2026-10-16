@@ -33,6 +33,10 @@ APT_KEYRING="/etc/apt/keyrings/tailscale-archive-keyring.gpg"
 APT_PIN="/etc/apt/preferences.d/tailscale"
 # Written by tailscale.com/install.sh, which older plugin versions ran.
 LEGACY_APT_KEYRING="/usr/share/keyrings/tailscale-archive-keyring.gpg"
+
+# Sign-in links work like a one-time password until they're used, so they're
+# kept out of the log. The plugin page shows the current one.
+REDACT_SED='s#https://login\.tailscale\.com/a/[A-Za-z0-9]*#[sign-in link, shown on the plugin page]#g'
 TS_DEFAULTS="/etc/default/tailscaled"
 # Turns off tailscaled's diagnostic log upload to log.tailscale.com, as declared
 # in pluginInfo.json's privacy block.
@@ -52,6 +56,32 @@ log() {
     echo "$line" >> "$LOG_FILE" 2>/dev/null
     [ -n "$LOG_ECHO" ] && echo "$line"
     return 0
+}
+
+# Filter: remove sign-in links from output headed for the log.
+redact() {
+    sed -u "$REDACT_SED"
+}
+
+# Remove sign-in links that older versions wrote to the log, including FPP's
+# rotated copies. Rewritten in place, so anything appending keeps working.
+redact_old_logs() {
+    local f tmp
+    for f in "$LOG_FILE" "$LOG_FILE".[0-9]*; do
+        [ -f "$f" ] || continue
+        tmp="$f.redact"
+        case "$f" in
+            *.gz)
+                zcat "$f" 2>/dev/null | grep -q 'login\.tailscale\.com/a/' || continue
+                zcat "$f" | sed "$REDACT_SED" | gzip > "$tmp" && cat "$tmp" > "$f"
+                ;;
+            *)
+                grep -q 'login\.tailscale\.com/a/' "$f" || continue
+                sed "$REDACT_SED" "$f" > "$tmp" && cat "$tmp" > "$f"
+                ;;
+        esac
+        rm -f "$tmp"
+    done
 }
 
 # cfg KEY [DEFAULT] - read a value from the plugin's INI config.
@@ -215,9 +245,12 @@ start_tailscaled_manually() {
         extra=()
         [ "$mode" = userspace ] && extra=(--tun=userspace-networking)
         log "Starting tailscaled manually ($mode networking)..."
+        # exec, so the filter is the only process left and holds nothing but
+        # the log: a subshell would keep the caller's pipe (the web UI's exec)
+        # open for as long as tailscaled runs.
         $SUDO setsid nohup tailscaled "$NO_LOGS_FLAG" "${extra[@]}" \
             --state="$TS_STATE_DIR/tailscaled.state" \
-            --socket="$TS_SOCKET" >> "$LOG_FILE" 2>&1 < /dev/null &
+            --socket="$TS_SOCKET" > >(exec sed -u "$REDACT_SED" >> "$LOG_FILE" 2>&1) 2>&1 < /dev/null &
         pid=$!
         for _ in $(seq 1 10); do
             if ts_ready; then

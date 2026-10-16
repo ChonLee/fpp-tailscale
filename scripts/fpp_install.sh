@@ -12,6 +12,7 @@ LOG_ECHO=1
 
 mkdir -p "$LOG_DIR"
 
+redact_old_logs
 touch "$LOG_FILE"
 chmod 644 "$LOG_FILE"
 id fpp >/dev/null 2>&1 && chown fpp:fpp "$LOG_FILE"
