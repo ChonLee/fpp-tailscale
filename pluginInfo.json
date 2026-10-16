@@ -7,6 +7,71 @@
   "srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
   "bugURL": "https://github.com/ChonLee/fpp-tailscale/issues",
   "allowUpdates": 1,
+  "privacy": {
+    "summary": "Connects this player to your Tailscale network so your own devices can reach it from anywhere. Tailscale (tailscale.com) runs the sign-in and connection service.",
+    "sends": [
+      {
+        "to": "controlplane.tailscale.com",
+        "what": "this player's name, network addresses and encryption keys",
+        "why": "to sign this player in to your Tailscale network",
+        "alwaysOn": false
+      },
+      {
+        "to": "your other Tailscale devices",
+        "what": "network traffic, encrypted",
+        "why": "so your devices can reach this player and its web pages",
+        "alwaysOn": false
+      },
+      {
+        "to": "Tailscale's relay servers (derp*.tailscale.com)",
+        "what": "network traffic, encrypted",
+        "why": "to reach your devices when a direct connection isn't possible",
+        "alwaysOn": false
+      }
+    ],
+    "collects": [
+      {
+        "what": "a log of connection events and sign-in links",
+        "about": "operator",
+        "keptDays": null,
+        "canDelete": false,
+        "where": "logs/fpp-tailscale.log"
+      },
+      {
+        "what": "this player's Tailscale identity and keys",
+        "about": "operator",
+        "keptDays": null,
+        "canDelete": false,
+        "where": "/var/lib/tailscale"
+      }
+    ],
+    "sensors": [],
+    "remoteAccess": "tunnel",
+    "systemChanges": [
+      {
+        "kind": "download",
+        "what": "installs Tailscale from tailscale.com, and reinstalls it when FPP starts if an FPP OS update removed it"
+      },
+      {
+        "kind": "package-source",
+        "what": "adds Tailscale's apt package source and signing key"
+      },
+      {
+        "kind": "service",
+        "what": "enables and runs Tailscale's background service (tailscaled), with its diagnostic log upload turned off"
+      },
+      {
+        "kind": "tunnel",
+        "what": "joins this player to your Tailscale network, so your Tailscale devices can reach it and FPP's web pages"
+      },
+      {
+        "kind": "network",
+        "what": "adds a tailscale0 network interface, and uses networks your tailnet shares if you turn on subnet routes"
+      }
+    ],
+    "closedCode": false,
+    "other": "Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. Uninstalling logs this player out of Tailscale and removes the Tailscale package and its apt source."
+  },
   "versions": [
     {
       "minFPPVersion": "7.0",

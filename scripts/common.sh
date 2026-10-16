@@ -12,6 +12,10 @@ LOG_DIR="/home/fpp/media/logs"
 LOG_FILE="$LOG_DIR/fpp-tailscale.log"
 OLD_LOG_FILE="/var/log/fpp-tailscale.log"
 UP_PIDFILE="/run/fpp-tailscale-up.pid"
+TS_DEFAULTS="/etc/default/tailscaled"
+# Turns off tailscaled's diagnostic log upload to log.tailscale.com, as declared
+# in pluginInfo.json's privacy block.
+NO_LOGS_FLAG="--no-logs-no-support"
 TS_STATE_DIR="/var/lib/tailscale"
 TS_SOCKET="/var/run/tailscale/tailscaled.sock"
 
@@ -121,7 +125,7 @@ start_tailscaled_manually() {
         extra=()
         [ "$mode" = userspace ] && extra=(--tun=userspace-networking)
         log "Starting tailscaled manually ($mode networking)..."
-        $SUDO setsid nohup tailscaled "${extra[@]}" \
+        $SUDO setsid nohup tailscaled "$NO_LOGS_FLAG" "${extra[@]}" \
             --state="$TS_STATE_DIR/tailscaled.state" \
             --socket="$TS_SOCKET" >> "$LOG_FILE" 2>&1 < /dev/null &
         pid=$!
@@ -141,8 +145,28 @@ start_tailscaled_manually() {
     return 1
 }
 
-# Make sure tailscaled is running. Doesn't touch a daemon that's already up.
+# Add NO_LOGS_FLAG to the FLAGS tailscaled's systemd unit reads. Succeeds only
+# if it changed the file.
+disable_log_upload() {
+    [ -f "$TS_DEFAULTS" ] || return 1
+    grep -q -- "$NO_LOGS_FLAG" "$TS_DEFAULTS" && return 1
+    local flags
+    flags=$(sed -n 's/^FLAGS=//p' "$TS_DEFAULTS" | tail -n 1 | sed 's/^"\(.*\)"$/\1/')
+    flags="${flags:+$flags }$NO_LOGS_FLAG"
+    $SUDO sed -i '/^FLAGS=/d' "$TS_DEFAULTS"
+    echo "FLAGS=\"$flags\"" | $SUDO tee -a "$TS_DEFAULTS" >/dev/null
+    log "Turned off Tailscale's diagnostic log upload ($NO_LOGS_FLAG)"
+    return 0
+}
+
+# Make sure tailscaled is running with the plugin's flags. Leaves a daemon that
+# is already up and configured alone.
 ensure_tailscaled() {
+    if [ -d /run/systemd/system ] && disable_log_upload && systemctl is-active --quiet tailscaled; then
+        log "Restarting tailscaled to apply it..."
+        $SUDO systemctl restart tailscaled
+        wait_ready 15
+    fi
     ts_ready && return 0
     if [ -d /run/systemd/system ]; then
         log "Starting tailscaled via systemd..."
