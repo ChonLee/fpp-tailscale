@@ -10,7 +10,7 @@
   "allowUpdates": 1,
   "releaseNotesStyle": "gitHistory",
   "privacy": {
-    "summary": "Connects this player to your Tailscale network so your own devices can reach it from anywhere. Tailscale (tailscale.com) runs the sign-in and connection service.",
+    "summary": "Connects FPP to your Tailscale network so your own devices can reach it from anywhere. Tailscale (tailscale.com) runs the sign-in and connection service.",
     "sends": [
       {
         "to": "controlplane.tailscale.com",
