@@ -4,6 +4,7 @@
   "author": "John Myers",
   "description": "Manage Tailscale VPN connections for secure remote access to your FPP device",
   "homeURL": "https://github.com/ChonLee/fpp-tailscale",
+  "iconURL": "https://raw.githubusercontent.com/ChonLee/fpp-tailscale/main/icon.png",
   "srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
   "bugURL": "https://github.com/ChonLee/fpp-tailscale/issues",
   "allowUpdates": 1,
