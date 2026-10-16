@@ -67,6 +67,24 @@ The plugin only manages the device name and subnet routes. Anything else you set
 
 If the device was removed or its key expired in the Tailscale admin console, click **Force re-authenticate**. This logs the device out and gives you a new login link.
 
+### Syncing two FPPs over Tailscale
+
+Two houses running one show, with a neighbor's house in between? Instead of running a cable or a wireless link across the neighbor's yard, let FPP's MultiSync talk over Tailscale, through each house's own internet connection. FPP normally finds remotes and sends sync packets by multicast, which doesn't cross Tailscale, so the player has to be told where the remote is.
+
+1. Install this plugin on both FPPs and connect them to the same tailnet.
+2. On the **player**, open **Status/Control → MultiSync**:
+   - Add the remote's Tailscale IP (the 100.x address on its Tailscale VPN page) to **MultiSync Unicast Discovery IPs**.
+   - Turn on **Send MultiSync to ALL KNOWN remotes via Unicast**.
+3. Also on the player, make sure **Send MultiSync Packets** is on (**FPP Settings → Playback**).
+4. On the **remote**, set **FPP Player Mode** to **Remote**. Nothing else is needed: it listens for sync on every network interface, Tailscale included.
+
+After a minute or so the remote shows up in the player's MultiSync list.
+
+- **Timing:** sync packets travel over the internet, so the remote house runs slightly behind the player by however long a packet takes to get there. Between neighbors that's usually a few tens of milliseconds, a frame or two of a typical sequence, which is hard to spot. It's much longer if Tailscale has to relay the connection through its servers. To check, run `tailscale ping <remote's Tailscale IP>` on the player: a reply `via` an IP address is a direct connection, and `via DERP(...)` means it's relayed. The time it shows is the round trip, so the remote lags by about half of it.
+- **Copying files:** **Copy files to remotes** uses rsync, so the rsync service must be enabled on the remote. Large media files are slow over a home internet connection.
+
+These steps follow FPP 10.2's MultiSync settings, but haven't been tested end to end yet. Menu names can differ on older FPP versions.
+
 ## Configuration
 
 Settings are stored in `/home/fpp/media/config/plugin.fpp-tailscale`:
