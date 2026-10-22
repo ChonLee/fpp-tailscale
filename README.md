@@ -108,6 +108,8 @@ Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the d
 
 If Tailscale was already installed before you installed the plugin, uninstalling leaves Tailscale installed, running and signed in. Only the plugin's own files are removed.
 
+**Reinstall** in the Plugin Manager keeps Tailscale running and signed in, and keeps the plugin's settings, on FPP 10.2 and later. On older FPP, a Reinstall removes everything like an uninstall, so you'll need to sign in again.
+
 If you're connected to the FPP device through Tailscale, you'll lose that connection.
 
 ## Development
