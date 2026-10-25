@@ -24,8 +24,9 @@ log "=== Installing Tailscale plugin ==="
 if [ ! -f "$CONFIG_FILE" ] && ts_installed; then
     mkdir -p "$DATA_DIR"
     touch "$PREINSTALLED_MARKER"
+    save_preinstalled
     id fpp >/dev/null 2>&1 && chown -R fpp:fpp "$DATA_DIR"
-    log "Tailscale was already installed. Uninstalling the plugin will leave it in place."
+    log "Tailscale was already installed. Uninstalling the plugin will leave it installed and put back what the plugin changed."
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then

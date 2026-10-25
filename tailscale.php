@@ -76,8 +76,12 @@
                 <tr><th scope="row">Tailscale IP</th><td id="ts-ip"></td></tr>
                 <tr><th scope="row">Hostname</th><td id="ts-name"></td></tr>
                 <tr><th scope="row">MagicDNS name</th><td id="ts-dns"></td></tr>
+                <tr><th scope="row">Tailnet</th><td id="ts-tailnet"></td></tr>
+                <tr><th scope="row">Signed in as</th><td id="ts-account"></td></tr>
             </tbody>
         </table>
+        <div id="ts-access-note" class="ts-note ts-gap" style="display: none">Every device on this tailnet, and anyone you share this player with, can open FPP's web pages without logging in, the same as someone on your show network. To limit that, use Tailscale's access controls, or turn on a UI password in FPP Settings &rarr; UI.</div>
+        <div id="ts-route-warning" class="ts-status ts-error" role="alert" style="display: none"></div>
 
         <div id="ts-auth" class="ts-gap" style="display: none">
             <a id="ts-auth-link" href="#" target="_blank" rel="noopener"></a>
@@ -99,7 +103,7 @@
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
-            <div class="ts-note">Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection.</div>
+            <div class="ts-note">Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection. It only checks when you turn this on and when the FPP connects: if a device starts sharing this FPP's network later, the FPP loses its local connection, including to its controllers, until you turn this off. This page warns you when that happens.</div>
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-auto-update"> Keep Tailscale up to date automatically</label>
@@ -186,6 +190,16 @@
             $('#ts-ip').text(status.ip || '-');
             $('#ts-name').text(status.hostname || '-');
             $('#ts-dns').text(status.dns_name || '-');
+            $('#ts-tailnet').text(status.tailnet || '-');
+            $('#ts-account').text(status.account || '-');
+        }
+        $('#ts-access-note').toggle(connected);
+
+        var conflicts = (connected && status.route_conflicts) || [];
+        var $warning = $('#ts-route-warning').toggle(conflicts.length > 0).empty();
+        if (conflicts.length) {
+            $warning.append($('<strong>').text('Another device now shares this FPP\'s own network'));
+            $warning.append($('<div class="ts-note">').text(conflicts.join('; ') + '. While this FPP accepts subnet routes, it can\'t reach devices on its local network, such as its controllers. Turn off Accept subnet routes below.'));
         }
 
         $('#ts-auth').toggle(hasAuthUrl);

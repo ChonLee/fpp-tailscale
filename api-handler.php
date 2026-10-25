@@ -93,7 +93,8 @@ function tsDecodeStatus($out)
     if ($start === false) {
         return null;
     }
-    $json = json_decode(substr($out, $start), true);
+    // Big ints as strings: user IDs are 64-bit, and FPP on a Pi runs 32-bit PHP.
+    $json = json_decode(substr($out, $start), true, 512, JSON_BIGINT_AS_STRING);
     return (is_array($json) && isset($json['BackendState'])) ? $json : null;
 }
 
@@ -173,11 +174,23 @@ function tsStatus()
             }
         }
     }
+    // Which tailnet and account this player joined, so a sign-in by someone
+    // else (the sign-in link is on the page) is visible.
+    $account = '';
+    if (isset($self['UserID']) && isset($json['User'][$self['UserID']]['LoginName'])) {
+        $account = (string)$json['User'][$self['UserID']]['LoginName'];
+    }
+    // A route that covers this FPP's own network can be shared after it
+    // connected, when the check at connect time has already passed.
+    $cfg = tsReadConfig();
     return array(
         'state' => 'connected',
         'ip' => $ip,
         'hostname' => isset($self['HostName']) ? $self['HostName'] : '',
         'dns_name' => isset($self['DNSName']) ? rtrim($self['DNSName'], '.') : '',
+        'tailnet' => isset($json['CurrentTailnet']['Name']) ? (string)$json['CurrentTailnet']['Name'] : '',
+        'account' => $account,
+        'route_conflicts' => $cfg['accept_routes'] ? tsRouteConflicts($json) : array(),
     );
 }
 

@@ -21,6 +21,8 @@ DATA_DIR="$MEDIADIR/plugindata/fpp-tailscale"
 # Present if Tailscale was installed before the plugin was; uninstall then
 # leaves Tailscale alone.
 PREINSTALLED_MARKER="$DATA_DIR/preinstalled"
+# Packages apt installed along with tailscale, one per line.
+APT_ADDED="$DATA_DIR/apt-added"
 LOG_DIR="$LOGDIR"
 # FPP's naming for plugin logs: plugin-<repoName>.log
 LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
@@ -221,21 +223,25 @@ migrate_apt_source() {
 # Install Tailscale if it's missing (first install, or an FPP OS upgrade wiped
 # it). It isn't declared in pluginInfo.json's dependencies because it isn't in
 # Debian: it comes from Tailscale's own apt source, which the plugin adds
-# (guidelines §6.2). The package's own install script starts tailscaled; a
-# runtime mask stops that, since only Connect (or auto-connect) may start it
-# (§4.4). The mask goes away on unmask or reboot.
+# (guidelines §6.2). Its Debian dependency, iptables, is declared for FPP 10,
+# which installs it first; older FPP has apt pull it in here. The package's
+# own install script starts tailscaled; a runtime mask stops that, since only
+# Connect (or auto-connect) may start it (§4.4). The mask goes away on unmask
+# or reboot.
 ensure_installed() {
     ts_installed && return 0
     log "Tailscale not found, installing it from pkgs.tailscale.com..."
     setup_apt_source || return 1
-    local masked="" rc
+    local masked="" rc before
+    before=$(installed_packages)
     if [ -d /run/systemd/system ] && $SUDO systemctl mask --runtime tailscaled >/dev/null 2>&1; then
         masked=1
     fi
     # Refresh only Tailscale's source first: usually enough, and much faster
     # than refreshing everything (Raspbian's lists alone are ~16 MB). If the
     # install still fails, the image's Debian lists are probably too old for
-    # the Debian packages Tailscale needs (nftables), so refresh all and retry.
+    # the Debian packages Tailscale needs (iptables and its libraries), so
+    # refresh all and retry.
     log "Updating Tailscale's package list..."
     run_apt $SUDO apt-get update -o Dir::Etc::SourceList=sources.list.d/tailscale.list \
         -o Dir::Etc::SourceParts=- -o APT::Get::List-Cleanup=0
@@ -253,8 +259,18 @@ ensure_installed() {
         log "ERROR: failed to install Tailscale"
         return 1
     fi
+    # What apt brought in with it (iptables, unless FPP 10 already installed
+    # it as a declared dependency), so uninstalling can remove that too.
+    mkdir -p "$DATA_DIR"
+    comm -13 <(echo "$before") <(installed_packages) | grep -vx tailscale >> "$APT_ADDED"
+    id fpp >/dev/null 2>&1 && chown -R fpp:fpp "$DATA_DIR"
     disable_log_upload >/dev/null
     log "Tailscale installed: $(tailscale version 2>/dev/null | head -n1)"
+}
+
+# Names of the installed packages, sorted.
+installed_packages() {
+    dpkg-query -W -f='${Status} ${Package}\n' 2>/dev/null | awk '$3 == "installed" { print $4 }' | sort
 }
 
 # Succeeds once tailscaled answers on its socket.
@@ -366,4 +382,106 @@ kill_pending_up() {
         $SUDO kill -- -"$pid" 2>/dev/null
     fi
     $SUDO rm -f "$UP_PIDFILE"
+}
+
+# A Tailscale that was installed before the plugin is put back as it was when
+# the plugin is uninstalled. PREINSTALLED_MARKER holds what the plugin may
+# change, as key=value lines, each saved before the plugin first changes it.
+
+# preinstalled_get KEY - print a saved value; fails if it wasn't saved.
+preinstalled_get() {
+    grep -q "^$1=" "$PREINSTALLED_MARKER" 2>/dev/null || return 1
+    sed -n "s/^$1=//p" "$PREINSTALLED_MARKER" | head -n 1
+}
+
+# preinstalled_save KEY VALUE - save it, unless it's already saved.
+preinstalled_save() {
+    [ -f "$PREINSTALLED_MARKER" ] || return 0
+    grep -q "^$1=" "$PREINSTALLED_MARKER" || printf '%s=%s\n' "$1" "$2" >> "$PREINSTALLED_MARKER"
+}
+
+# Save what isn't saved yet: the service state and tailscaled's FLAGS always,
+# and Tailscale's own settings once tailscaled is running.
+save_preinstalled() {
+    [ -f "$PREINSTALLED_MARKER" ] || return 0
+    if [ -d /run/systemd/system ]; then
+        preinstalled_save service_enabled "$(systemctl is-enabled tailscaled 2>/dev/null)"
+        preinstalled_save service_active "$(systemctl is-active tailscaled 2>/dev/null)"
+    fi
+    [ -f "$TS_DEFAULTS" ] && preinstalled_save flags "$(grep '^FLAGS=' "$TS_DEFAULTS" | tail -n 1)"
+    preinstalled_get hostname >/dev/null && return 0
+    ts_ready || return 0
+    local prefs k v
+    # shellcheck disable=SC2016 # PHP code, not shell
+    prefs=$(timeout 10 tailscale debug prefs 2>/dev/null | php -r '
+        $p = json_decode(stream_get_contents(STDIN), true);
+        if (!is_array($p)) {
+            exit(1);
+        }
+        $apply = isset($p["AutoUpdate"]["Apply"]) ? $p["AutoUpdate"]["Apply"] : null;
+        echo "hostname=", isset($p["Hostname"]) ? $p["Hostname"] : "", "\n",
+            "accept_routes=", empty($p["RouteAll"]) ? "false" : "true", "\n",
+            "auto_update=", $apply === null ? "" : ($apply ? "true" : "false"), "\n",
+            "want_running=", empty($p["WantRunning"]) ? "false" : "true", "\n";
+    ') || return 0
+    while IFS='=' read -r k v; do
+        preinstalled_save "$k" "$v"
+    done <<< "$prefs"
+}
+
+# Put back what save_preinstalled saved. Anything not saved is left as it is.
+restore_preinstalled() {
+    local v flags_changed="" have_systemd=""
+    local -a args=()
+    [ -d /run/systemd/system ] && have_systemd=1
+    if preinstalled_get hostname >/dev/null; then
+        # Tailscale's settings can only be changed while it runs.
+        if ! ts_ready && [ -n "$have_systemd" ]; then
+            $SUDO systemctl start tailscaled >/dev/null 2>&1
+            wait_ready 15
+        fi
+        if ts_ready; then
+            log "Putting back Tailscale's own settings..."
+            args=("--hostname=$(preinstalled_get hostname)" "--accept-routes=$(preinstalled_get accept_routes)")
+            v=$(preinstalled_get auto_update)
+            # It was unset (Tailscale's default), which the CLI can't set
+            # again. If the plugin turned it on, turn it off.
+            # shellcheck disable=SC2016 # PHP code, not shell
+            if [ -z "$v" ] && timeout 10 tailscale debug prefs 2>/dev/null \
+                | php -r '$p = json_decode(stream_get_contents(STDIN), true); exit(empty($p["AutoUpdate"]["Apply"]) ? 1 : 0);'; then
+                v=false
+            fi
+            [ -n "$v" ] && args+=("--auto-update=$v")
+            timeout 15 $SUDO tailscale set "${args[@]}" >> "$LOG_FILE" 2>&1
+            if [ "$(preinstalled_get want_running)" = true ]; then
+                ts_logged_in && timeout 15 $SUDO tailscale up >> "$LOG_FILE" 2>&1
+            else
+                timeout 15 $SUDO tailscale down >> "$LOG_FILE" 2>&1
+            fi
+        else
+            log "WARNING: tailscaled isn't running, so its own settings weren't put back"
+        fi
+    fi
+    if v=$(preinstalled_get flags) && [ -f "$TS_DEFAULTS" ] \
+        && [ "$(grep '^FLAGS=' "$TS_DEFAULTS" | tail -n 1)" != "$v" ]; then
+        log "Putting back tailscaled's FLAGS in $TS_DEFAULTS"
+        $SUDO sed -i '/^FLAGS=/d' "$TS_DEFAULTS"
+        [ -n "$v" ] && echo "$v" | $SUDO tee -a "$TS_DEFAULTS" >/dev/null
+        flags_changed=1
+    fi
+    [ -n "$have_systemd" ] || return 0
+    case "$(preinstalled_get service_enabled)" in
+        enabled) $SUDO systemctl enable tailscaled >/dev/null 2>&1 ;;
+        disabled) $SUDO systemctl disable tailscaled >/dev/null 2>&1 ;;
+    esac
+    case "$(preinstalled_get service_active)" in
+        active)
+            if [ -n "$flags_changed" ]; then
+                $SUDO systemctl restart tailscaled
+            else
+                $SUDO systemctl start tailscaled
+            fi
+            ;;
+        inactive|failed) $SUDO systemctl stop tailscaled ;;
+    esac
 }

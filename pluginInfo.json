@@ -62,7 +62,7 @@
       },
       {
         "kind": "service",
-        "what": "runs Tailscale's background service (tailscaled) once you click Connect, with its diagnostic log upload turned off"
+        "what": "runs tailscaled with log upload off. After you first click Connect, it starts at every boot and keeps running while FPP is stopped, until uninstalled"
       },
       {
         "kind": "tunnel",
@@ -74,32 +74,37 @@
       }
     ],
     "closedCode": false,
-    "other": "Nothing connects to Tailscale until you click Connect or turn on auto-connect. Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. If an FPP OS update removes Tailscale, auto-connect reinstalls it from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package, its apt source, signing key and pin, unless Tailscale was installed before the plugin: then it's left as it was."
+    "other": "Nothing connects to Tailscale until you click Connect or turn on auto-connect. Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. If an FPP OS update removes Tailscale, auto-connect reinstalls it from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package, its apt source, signing key and pin, unless Tailscale was installed before the plugin: then it stays installed, and the settings the plugin changed are put back as they were."
   },
   "versions": [
     {
       "minFPPVersion": "7.0",
       "maxFPPVersion": "7.99",
       "branch": "main",
-      "sha": ""
+      "sha": "",
+      "platforms": ["Raspberry Pi", "BeagleBone Black", "BeagleBone 64", "Armbian", "Debian", "Ubuntu"]
     },
     {
       "minFPPVersion": "8.0",
       "maxFPPVersion": "8.99",
       "branch": "main",
-      "sha": ""
+      "sha": "",
+      "platforms": ["Raspberry Pi", "BeagleBone Black", "BeagleBone 64", "Armbian", "Debian", "Ubuntu"]
     },
     {
       "minFPPVersion": "9.0",
       "maxFPPVersion": "9.99",
       "branch": "main",
-      "sha": ""
+      "sha": "",
+      "platforms": ["Raspberry Pi", "BeagleBone Black", "BeagleBone 64", "Armbian", "Debian", "Ubuntu"]
     },
     {
       "minFPPVersion": "10.0",
       "maxFPPVersion": "0",
       "branch": "main",
-      "sha": ""
+      "sha": "",
+      "dependencies": { "packages": ["iptables"] },
+      "platforms": ["Raspberry Pi", "BeagleBone Black", "BeagleBone 64", "Armbian", "Debian", "Ubuntu"]
     }
   ]
 }

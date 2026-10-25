@@ -22,6 +22,13 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 up_worker() {
     local host
     host=$(ts_hostname)
+    # Just after it starts (at boot, or after a restart for its flags),
+    # tailscaled says NoState until it has read its state, which would look
+    # like it isn't signed in.
+    for _ in $(seq 1 10); do
+        [ "$(ts_backend_state)" != NoState ] && break
+        sleep 1
+    done
     if ts_logged_in; then
         # A bare `tailscale up` reconnects without changing any setting.
         log "Running: tailscale set --hostname=$host --accept-routes=false"
@@ -90,6 +97,9 @@ apply_routes() {
 
 start_up() {
     ensure_tailscaled || exit 1
+    # Tailscale's own settings, if they couldn't be saved before it ran.
+    save_preinstalled
+    preinstalled_save connected 1
     kill_pending_up
     setsid /bin/bash "$SELF" _up-worker >> "$LOG_FILE" 2>&1 < /dev/null 9>&- &
     echo $! > "$UP_PIDFILE"
@@ -108,7 +118,12 @@ lock_actions() {
 }
 
 case "$1" in
-    up|down|reauth|autoupdate-on|autoupdate-off) lock_actions ;;
+    up|down|reauth|autoupdate-on|autoupdate-off)
+        lock_actions
+        # A Tailscale that was here before the plugin: note how it was, so
+        # uninstalling can put it back.
+        save_preinstalled
+        ;;
 esac
 
 case "$1" in

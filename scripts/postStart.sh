@@ -13,6 +13,15 @@
     redact_old_logs
     migrate_apt_source
 
+    # A Tailscale update can replace tailscaled's defaults file, dropping the
+    # flag that turns off its log upload. Put it back, unless this is a
+    # Tailscale from before the plugin that hasn't been connected through it.
+    if ts_installed && { [ ! -f "$PREINSTALLED_MARKER" ] || preinstalled_get connected >/dev/null; } \
+        && disable_log_upload && [ -d /run/systemd/system ] && systemctl is-active --quiet tailscaled; then
+        log "Restarting tailscaled to apply it..."
+        systemctl restart tailscaled
+    fi
+
     # Without auto-connect, leave Tailscale alone: if it was connected before,
     # its own service brings that back.
     if ! cfg_true auto_connect; then
