@@ -63,7 +63,7 @@ With it unchecked, the plugin doesn't force a connection. Tailscale itself still
 
 These settings save as soon as you change them. If Tailscale is connected, the change applies right away. Leave the device name blank to use the system hostname.
 
-The plugin won't accept subnet routes when another device shares this FPP's own network, because accepting them would cut the FPP off from its local network. It checks when you turn the setting on and each time the FPP connects. A route that's shared or approved later, while the FPP stays connected, isn't caught: the FPP loses its local connection, including to its controllers, until you turn **Accept subnet routes** off. The plugin page shows a warning when that happens. The two-houses setup below doesn't need subnet routes, so leave the setting off there, especially if both houses use the same network (often 192.168.1.0/24).
+The plugin won't accept subnet routes when another device shares this FPP's own network, because accepting them would cut the FPP off from its local network. It checks when you turn the setting on, each time the FPP connects, and each time FPP starts; if a route then covers the FPP's network, it turns subnet routes off and says so in the plugin log. A route that's shared or approved later, while the FPP stays connected, isn't caught: the FPP loses its local connection, including to its controllers, until you turn **Accept subnet routes** off. The plugin page shows a warning when that happens. The two-houses setup below doesn't need subnet routes, so leave the setting off there, especially if both houses use the same network (often 192.168.1.0/24).
 
 The plugin only manages the device name and subnet routes. Anything else you set with the `tailscale` command (Tailscale SSH, an exit node, advertised routes, ...) is left alone when the plugin connects.
 
@@ -108,7 +108,8 @@ hostname = "my-fpp-display"
 - **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it. Sign-in links are left out of it, because they work like a one-time password until used.
 - **Daemon log:** `sudo journalctl -u tailscaled -n 50`
 - **Page won't load:** `tail /home/fpp/media/logs/apache2-error.log`
-- **After an FPP OS upgrade:** if the upgrade removed Tailscale and auto-connect is on, the plugin reinstalls it the next time FPP starts. Otherwise, reinstall the plugin from the Plugin Manager.
+- **After an FPP OS upgrade:** the upgrade replaces the system, which removes Tailscale. If the FPP was signed in through the plugin, the plugin installs Tailscale again the next time FPP starts. With auto-connect on, it also reconnects; otherwise, click **Connect** on the plugin page. Either way, the FPP stays the same device in your Tailscale network, with no new sign-in (see "Where the sign-in is kept" below).
+- **Several devices named fpp, fpp-1, fpp-2:** older versions of the plugin signed in as a new device after each FPP OS upgrade, and Tailscale numbers a new device whose name is already taken. Remove the old ones in the Tailscale admin console (they show as offline), then rename the current one there.
 
 ## Uninstallation
 
@@ -116,9 +117,13 @@ Delete the plugin from **Content Setup** → **Plugin Manager**. This logs the d
 
 If Tailscale was already installed before you installed the plugin, uninstalling leaves it installed and signed in, and puts back what the plugin changed: the device name, subnet routes, automatic updates, whether it was connected, tailscaled's flags, and whether its service was enabled and running. The plugin notes those before it first changes them.
 
-**Reinstall** in the Plugin Manager keeps Tailscale running and signed in, and keeps the plugin's settings, on FPP 10.2 and later. On FPP 10.0 and 10.1, a Reinstall removes everything like an uninstall, so you'll need to sign in again. (FPP 7–9 have no Reinstall.)
+**Reinstall** in the Plugin Manager keeps the plugin's settings and Tailscale's sign-in, on FPP 10.4 and later. Tailscale itself is removed and installed again, so the device disconnects: click **Connect** afterwards (no new sign-in is needed), or, with auto-connect on, it reconnects the next time FPP starts. If Tailscale was installed before the plugin, a Reinstall puts back what the plugin changed, as uninstalling does. On FPP 10.3 and earlier, a Reinstall removes everything like an uninstall, so you'll need to sign in again. (FPP 7–9 have no Reinstall.)
 
 If you're connected to the FPP device through Tailscale, you'll lose that connection.
+
+### Where the sign-in is kept
+
+Tailscale keeps this device's identity and keys in `/var/lib/tailscale`. An FPP OS upgrade replaces that folder, and a Reinstall removes Tailscale, so the plugin keeps a copy in `/home/fpp/media/plugindata/fpp-tailscale/`, readable only by FPP's own user (`fpp`, mode 0600), as FPP's plugin guidelines ask for credentials. Tailscale's own copy is readable only by root, but FPP sets its whole media folder to the `fpp` user at every start, so nothing there can be root-only. It's updated each time the FPP connects, and puts the sign-in back after an OS upgrade or a Reinstall, so the FPP doesn't sign in again as a new device. The copy is tied to this FPP: if FPP's storage copy moves it to another player, it isn't used there. Uninstalling deletes it.
 
 ## Development
 

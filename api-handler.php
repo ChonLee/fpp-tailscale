@@ -116,10 +116,10 @@ function tsStatusJson($bin, &$error)
     return $json;
 }
 
-// Tailscale's own automatic-update setting: true or false, or null if it
-// can't be read (Tailscale not installed or not running). Falls back to sudo
-// like tsStatusJson().
-function tsAutoUpdate()
+// Tailscale's own settings (`tailscale debug prefs`), or null if they can't
+// be read (Tailscale not installed or not running). Falls back to sudo like
+// tsStatusJson().
+function tsPrefs()
 {
     $bin = tsBin();
     if ($bin === null) {
@@ -127,9 +127,20 @@ function tsAutoUpdate()
     }
     foreach (array('', 'sudo -n ') as $prefix) {
         $prefs = json_decode(tsRun($prefix . TS_TIMEOUT . escapeshellarg($bin) . ' debug prefs 2>/dev/null'), true);
-        if (is_array($prefs) && isset($prefs['AutoUpdate']) && is_array($prefs['AutoUpdate'])) {
-            return !empty($prefs['AutoUpdate']['Apply']);
+        if (is_array($prefs)) {
+            return $prefs;
         }
+    }
+    return null;
+}
+
+// Tailscale's own automatic-update setting: true or false, or null if it
+// can't be read.
+function tsAutoUpdate()
+{
+    $prefs = tsPrefs();
+    if (is_array($prefs) && isset($prefs['AutoUpdate']) && is_array($prefs['AutoUpdate'])) {
+        return !empty($prefs['AutoUpdate']['Apply']);
     }
     return null;
 }
@@ -181,8 +192,16 @@ function tsStatus()
         $account = (string)$json['User'][$self['UserID']]['LoginName'];
     }
     // A route that covers this FPP's own network can be shared after it
-    // connected, when the check at connect time has already passed.
+    // connected, when the check at connect time has already passed. Whether
+    // Tailscale accepts routes right now: the check at boot turns that off on
+    // a conflict, while the plugin's setting stays on.
     $cfg = tsReadConfig();
+    $conflicts = $cfg['accept_routes'] ? tsRouteConflicts($json) : array();
+    $routesAccepted = null;
+    if ($conflicts) {
+        $prefs = tsPrefs();
+        $routesAccepted = is_array($prefs) ? !empty($prefs['RouteAll']) : null;
+    }
     return array(
         'state' => 'connected',
         'ip' => $ip,
@@ -190,7 +209,9 @@ function tsStatus()
         'dns_name' => isset($self['DNSName']) ? rtrim($self['DNSName'], '.') : '',
         'tailnet' => isset($json['CurrentTailnet']['Name']) ? (string)$json['CurrentTailnet']['Name'] : '',
         'account' => $account,
-        'route_conflicts' => $cfg['accept_routes'] ? tsRouteConflicts($json) : array(),
+        'route_conflicts' => $conflicts,
+        // true/false, or null if unknown (then the page assumes they are).
+        'routes_accepted' => $routesAccepted,
     );
 }
 

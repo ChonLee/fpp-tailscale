@@ -103,7 +103,7 @@
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-accept-routes"> Accept subnet routes</label>
-            <div class="ts-note">Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection. It only checks when you turn this on and when the FPP connects: if a device starts sharing this FPP's network later, the FPP loses its local connection, including to its controllers, until you turn this off. This page warns you when that happens.</div>
+            <div class="ts-note">Lets this FPP reach devices on other networks that your Tailscale devices share, such as a controller at another house. Leave it off unless you need that. The plugin won't turn it on if another Tailscale device shares this FPP's own home network, because the FPP would lose its local connection. It checks when you turn this on, when the FPP connects, and when FPP starts. If a device starts sharing this FPP's network later, the FPP loses its local connection, including to its controllers, until you turn this off. This page warns you when that happens.</div>
         </div>
         <div class="ts-check">
             <label><input type="checkbox" class="form-check-input" id="ts-auto-update"> Keep Tailscale up to date automatically</label>
@@ -142,7 +142,7 @@
         disconnected:   { cls: 'ts-muted', title: 'Disconnected', text: 'Logged in to Tailscale but not connected.', buttons: ['connect', 'reauth'] },
         starting:       { cls: 'ts-info',      title: 'Connecting...', buttons: ['reauth'], fast: true },
         daemon_down:    { cls: 'ts-muted',    title: 'Tailscale is not running', text: 'Click Connect to start it and sign in.', buttons: ['connect'] },
-        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin from the Plugin Manager to install it.', buttons: [] }
+        not_installed:  { cls: 'ts-error',    title: 'Tailscale is not installed', text: 'Reinstall the plugin from the Plugin Manager to install it. If this player was signed in before, it stays the same Tailscale device.', buttons: [] }
     };
 
     // api-handler.php refuses POSTs without it (cross-site request forgery).
@@ -197,7 +197,11 @@
 
         var conflicts = (connected && status.route_conflicts) || [];
         var $warning = $('#ts-route-warning').toggle(conflicts.length > 0).empty();
-        if (conflicts.length) {
+        if (conflicts.length && status.routes_accepted === false) {
+            // The check at boot already turned them off in Tailscale.
+            $warning.append($('<strong>').text('Subnet routes were turned off'));
+            $warning.append($('<div class="ts-note">').text(conflicts.join('; ') + '. Accepting subnet routes would cut this FPP off from its local network, such as its controllers, so the plugin turned them off. Turn off Accept subnet routes below, or stop sharing that network from the other device and click Connect to check again.'));
+        } else if (conflicts.length) {
             $warning.append($('<strong>').text('Another device now shares this FPP\'s own network'));
             $warning.append($('<div class="ts-note">').text(conflicts.join('; ') + '. While this FPP accepts subnet routes, it can\'t reach devices on its local network, such as its controllers. Turn off Accept subnet routes below.'));
         }

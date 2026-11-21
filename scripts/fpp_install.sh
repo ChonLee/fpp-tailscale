@@ -44,6 +44,12 @@ id fpp >/dev/null 2>&1 && chown fpp:fpp "$CONFIG_FILE"
 migrate_apt_source
 ensure_installed || exit 1
 
+# After a Reinstall (FPP 10.4+), or an FPP OS upgrade followed by Reinstall All
+# Plugins, put Tailscale's sign-in back, so the player stays the same Tailscale
+# device. tailscaled isn't started here; the next Connect, or auto-connect at
+# boot, uses it (guideline §4.4).
+restore_kept_state
+
 log "Tailscale $(tailscale version 2>/dev/null | head -n1) is installed"
 log "=== Install complete. Open Content Setup -> Tailscale VPN to connect ==="
 exit 0

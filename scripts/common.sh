@@ -23,6 +23,10 @@ DATA_DIR="$MEDIADIR/plugindata/fpp-tailscale"
 PREINSTALLED_MARKER="$DATA_DIR/preinstalled"
 # Packages apt installed along with tailscale, one per line.
 APT_ADDED="$DATA_DIR/apt-added"
+TS_STATE="/var/lib/tailscale/tailscaled.state"
+# A copy of tailscaled's state (its sign-in), with this player's machine-id in
+# $KEPT_STATE.machine-id, kept across FPP OS upgrades and Reinstalls.
+KEPT_STATE="$DATA_DIR/tailscaled.state"
 LOG_DIR="$LOGDIR"
 # FPP's naming for plugin logs: plugin-<repoName>.log
 LOG_FILE="$LOG_DIR/plugin-fpp-tailscale.log"
@@ -231,6 +235,12 @@ migrate_apt_source() {
 ensure_installed() {
     ts_installed && return 0
     log "Tailscale not found, installing it from pkgs.tailscale.com..."
+    if [ -f "$PREINSTALLED_MARKER" ]; then
+        # The Tailscale that was here before the plugin is gone (an FPP OS
+        # upgrade replaces the system): from now on it's the plugin's.
+        log "The Tailscale installed before this plugin is gone, so the plugin now manages and uninstalls it."
+        rm -f "$PREINSTALLED_MARKER"
+    fi
     setup_apt_source || return 1
     local masked="" rc before
     before=$(installed_packages)
@@ -263,7 +273,7 @@ ensure_installed() {
     # it as a declared dependency), so uninstalling can remove that too.
     mkdir -p "$DATA_DIR"
     comm -13 <(echo "$before") <(installed_packages) | grep -vx tailscale >> "$APT_ADDED"
-    id fpp >/dev/null 2>&1 && chown -R fpp:fpp "$DATA_DIR"
+    id fpp >/dev/null 2>&1 && chown fpp:fpp "$DATA_DIR" "$APT_ADDED"
     disable_log_upload >/dev/null
     log "Tailscale installed: $(tailscale version 2>/dev/null | head -n1)"
 }
@@ -290,6 +300,28 @@ ts_logged_in() {
         Running|Starting|Stopped|NeedsMachineAuth) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# ts_pref NAME - print one of Tailscale's own top-level settings (a bool as
+# true/false); fails if tailscaled isn't running.
+ts_pref() {
+    # shellcheck disable=SC2016 # PHP code, not shell
+    timeout 10 tailscale debug prefs 2>/dev/null | php -r '
+        $p = json_decode(stream_get_contents(STDIN), true);
+        if (!is_array($p) || !array_key_exists($argv[1], $p)) {
+            exit(1);
+        }
+        $v = $p[$argv[1]];
+        echo is_bool($v) ? ($v ? "true" : "false") : $v, "\n";
+    ' "$1"
+}
+
+# wait_network - up to a minute for a default route (apt and tailscale need it)
+wait_network() {
+    for _ in $(seq 1 60); do
+        ip route show default 2>/dev/null | grep -q . && break
+        sleep 1
+    done
 }
 
 # wait_ready SECONDS
@@ -382,6 +414,59 @@ kill_pending_up() {
         $SUDO kill -- -"$pid" 2>/dev/null
     fi
     $SUDO rm -f "$UP_PIDFILE"
+}
+
+# Tailscale's sign-in (its machine key) is in tailscaled's state, under /var.
+# An FPP OS upgrade replaces /var, and a Reinstall (FPP 10.4+) removes
+# Tailscale, so without a copy the player signs in again as a new device,
+# which Tailscale names "fpp-1", "fpp-2", ... keep_ts_state copies it into the
+# plugin's data folder (guideline §14.11), mode 0600, with this player's
+# machine-id. FPP keeps that across OS upgrades, so a copy that reached another
+# player (FPP's Plugins storage copy) is never used there.
+this_machine() {
+    # Empty without one (some Docker images); every real FPP has one.
+    cat /etc/machine-id 2>/dev/null || true
+}
+
+keep_ts_state() {
+    [ -s "$TS_STATE" ] || return 0
+    mkdir -p "$DATA_DIR"
+    # The web UI keeps its config lock in there.
+    id fpp >/dev/null 2>&1 && chown fpp:fpp "$DATA_DIR"
+    # tailscaled replaces its state file atomically, so a copy is consistent
+    # even while it runs.
+    if (umask 077 && cp "$TS_STATE" "$KEPT_STATE.tmp" && this_machine > "$KEPT_STATE.id.tmp"); then
+        # Mode 0600, owned by fpp: FPP chowns its whole media folder to fpp at
+        # every boot (setFileOwnership() in fppinit), so it would be anyway.
+        id fpp >/dev/null 2>&1 && chown fpp:fpp "$KEPT_STATE.tmp" "$KEPT_STATE.id.tmp"
+        mv "$KEPT_STATE.id.tmp" "$KEPT_STATE.machine-id" && mv "$KEPT_STATE.tmp" "$KEPT_STATE"
+    else
+        rm -f "$KEPT_STATE.tmp" "$KEPT_STATE.id.tmp"
+        return 1
+    fi
+}
+
+# kept_state_ours - true if there's a copy, and it's this player's.
+kept_state_ours() {
+    [ -f "$KEPT_STATE" ] && [ "$(cat "$KEPT_STATE.machine-id" 2>/dev/null)" = "$(this_machine)" ]
+}
+
+# restore_kept_state - after an OS upgrade or a Reinstall, Tailscale is new and
+# has no state: put the copy back. tailscaled isn't started here; the next
+# Connect, or auto-connect at boot, uses it (guideline §4.4).
+restore_kept_state() {
+    [ -f "$KEPT_STATE" ] || return 0
+    if ! kept_state_ours; then
+        log "Ignoring a Tailscale sign-in copied from another player"
+        rm -f "$KEPT_STATE" "$KEPT_STATE.machine-id"
+        return 0
+    fi
+    [ -s "$TS_STATE" ] && return 0
+    # A running tailscaled would overwrite it.
+    pgrep -x tailscaled >/dev/null && return 0
+    mkdir -p "$TS_STATE_DIR" && chmod 700 "$TS_STATE_DIR"
+    (umask 077 && cp "$KEPT_STATE" "$TS_STATE.tmp") && mv "$TS_STATE.tmp" "$TS_STATE" \
+        && log "Put back Tailscale's sign-in from before, so this player stays the same Tailscale device"
 }
 
 # A Tailscale that was installed before the plugin is put back as it was when

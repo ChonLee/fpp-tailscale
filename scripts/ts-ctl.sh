@@ -10,6 +10,9 @@
 #   reauth  Log out, then `up` again to get a fresh login URL.
 #   autoupdate-on / autoupdate-off
 #           Turn Tailscale's automatic updates on or off.
+#   check-routes
+#           If Tailscale accepts subnet routes, turn that off when a route
+#           covers this FPP's own network, or when that can't be checked.
 #
 
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -39,6 +42,8 @@ up_worker() {
     else
         login_up "$host" || return
     fi
+    # So an FPP OS upgrade or a Reinstall keeps this sign-in.
+    keep_ts_state || log "WARNING: couldn't keep a copy of Tailscale's sign-in"
     apply_routes
 }
 
@@ -95,7 +100,38 @@ apply_routes() {
     esac
 }
 
+# At boot without auto-connect, tailscaled reconnects by itself, with whatever
+# subnet routes the tailnet approved while the FPP was off. Fails closed too.
+check_routes() {
+    local out rc=2
+    cfg_true accept_routes || return 0
+    [ "$(ts_pref RouteAll)" = true ] || return 0
+    if [ "$(ts_backend_state)" = Running ]; then
+        out=$(php "$PLUGIN_DIR/lan-routes.php")
+        rc=$?
+    else
+        out="Tailscale isn't connected"
+    fi
+    case "$rc" in
+        0)
+            log "Subnet routes checked: none covers this FPP's local network"
+            return 0
+            ;;
+        1)
+            log "WARNING: turning off subnet routes, because accepting them cuts this FPP off from its local network:"
+            log "$out"
+            ;;
+        *)
+            log "WARNING: turning off subnet routes, because the plugin couldn't check they're safe: ${out:-lan-routes.php failed}"
+            ;;
+    esac
+    log "Running: tailscale set --accept-routes=false (click Connect to check again)"
+    timeout 15 tailscale set --accept-routes=false >> "$LOG_FILE" 2>&1
+}
+
 start_up() {
+    # Tailscale's sign-in from before an OS upgrade or a Reinstall.
+    restore_kept_state
     ensure_tailscaled || exit 1
     # Tailscale's own settings, if they couldn't be saved before it ran.
     save_preinstalled
@@ -118,7 +154,7 @@ lock_actions() {
 }
 
 case "$1" in
-    up|down|reauth|autoupdate-on|autoupdate-off)
+    up|down|reauth|autoupdate-on|autoupdate-off|check-routes)
         lock_actions
         # A Tailscale that was here before the plugin: note how it was, so
         # uninstalling can put it back.
@@ -151,13 +187,16 @@ case "$1" in
         echo "$out"
         exit "$rc"
         ;;
+    check-routes)
+        check_routes
+        ;;
     _up-worker)
         up_worker
         # Only clear the pidfile if a newer `up` hasn't replaced it.
         [ "$(cat "$UP_PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$UP_PIDFILE"
         ;;
     *)
-        echo "usage: $0 up|down|reauth|autoupdate-on|autoupdate-off" >&2
+        echo "usage: $0 up|down|reauth|autoupdate-on|autoupdate-off|check-routes" >&2
         exit 2
         ;;
 esac

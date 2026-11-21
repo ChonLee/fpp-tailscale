@@ -50,7 +50,7 @@
         "about": "operator",
         "keptDays": null,
         "canDelete": false,
-        "where": "/var/lib/tailscale"
+        "where": "/var/lib/tailscale, and a copy in plugindata/fpp-tailscale/, readable only by FPP's own user (mode 0600), so an FPP OS upgrade or a Reinstall keeps this player the same Tailscale device"
       }
     ],
     "sensors": [],
@@ -74,7 +74,7 @@
       }
     ],
     "closedCode": false,
-    "other": "Nothing connects to Tailscale until you click Connect or turn on auto-connect. Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. If an FPP OS update removes Tailscale, auto-connect reinstalls it from pkgs.tailscale.com. Uninstalling logs this player out of Tailscale and removes the Tailscale package, its apt source, signing key and pin, unless Tailscale was installed before the plugin: then it stays installed, and the settings the plugin changed are put back as they were."
+    "other": "Nothing connects to Tailscale until you click Connect or turn on auto-connect. Tailscale's diagnostic log upload is turned off, so Tailscale can't offer technical support for this player. If an FPP OS update removes Tailscale from a player that was signed in through the plugin, the plugin reinstalls it from pkgs.tailscale.com at the next start, with the same sign-in; it reconnects then only if auto-connect is on. Uninstalling logs this player out of Tailscale and removes the Tailscale package, its apt source, signing key and pin, unless Tailscale was installed before the plugin: then it stays installed, and the settings the plugin changed are put back as they were."
   },
   "versions": [
     {
