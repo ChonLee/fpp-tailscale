@@ -145,6 +145,13 @@ ts_installed() {
     command -v tailscale >/dev/null 2>&1 && command -v tailscaled >/dev/null 2>&1
 }
 
+# The plugin installed this Tailscale: only then is the plugin's own apt pin
+# there (setup_apt_source writes it; a Tailscale that was here before the
+# plugin keeps its own apt setup).
+ts_installed_by_plugin() {
+    grep -q 'fpp-tailscale plugin' "$APT_PIN" 2>/dev/null
+}
+
 # run_apt CMD... - run an apt command with its output in the log. During
 # install (LOG_ECHO set) it also goes to FPP's install window, which shows
 # whole lines as they arrive, with a line every 15 seconds so a long, quiet

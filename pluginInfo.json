@@ -2,7 +2,7 @@
   "repoName": "fpp-tailscale",
   "name": "Tailscale VPN",
   "author": "John Myers",
-  "description": "Connects FPP to your Tailscale network so your own devices can reach it securely from anywhere. Sign-in and connections go through Tailscale's servers (controlplane.tailscale.com, and derp*.tailscale.com relays), and Tailscale is installed from its own apt source, pkgs.tailscale.com.",
+  "description": "Connects FPP to your Tailscale network so your own devices can reach it securely from anywhere. Sign-in and connections go through Tailscale's servers (controlplane.tailscale.com, and derp*.tailscale.com relays); you sign in in your browser at login.tailscale.com. Tailscale is installed from its own apt source, pkgs.tailscale.com.",
   "homeURL": "https://github.com/ChonLee/fpp-tailscale",
   "iconURL": "https://raw.githubusercontent.com/ChonLee/fpp-tailscale/main/icon.png",
   "srcURL": "https://github.com/ChonLee/fpp-tailscale.git",
@@ -33,7 +33,7 @@
       {
         "to": "pkgs.tailscale.com",
         "what": "requests to download the Tailscale package",
-        "why": "to install Tailscale, and to update it if you turn on automatic updates",
+        "why": "to install Tailscale, reinstall it after an FPP OS update removes it, and for automatic updates",
         "alwaysOn": false
       }
     ],
@@ -70,7 +70,7 @@
       },
       {
         "kind": "network",
-        "what": "adds a tailscale0 network interface, and uses networks your tailnet shares if you turn on subnet routes"
+        "what": "adds a tailscale0 interface, and uses networks your tailnet shares if you turn on subnet routes. Uninstalling deletes FPP's saved tailscale0 settings"
       }
     ],
     "closedCode": false,

@@ -55,6 +55,11 @@ if [ -f "$PREINSTALLED_MARKER" ]; then
     restore_preinstalled
     # A Reinstall keeps the marker, and the plugin hasn't connected it since.
     [ -n "$REINSTALL" ] && sed -i '/^connected=/d' "$PREINSTALLED_MARKER"
+elif ts_installed && ! ts_installed_by_plugin; then
+    # No marker, but the plugin didn't install this Tailscale either: this
+    # script already ran once (and removed the marker with the plugin's data),
+    # or the marker was lost. Leave Tailscale as it is.
+    log "Tailscale wasn't installed by this plugin, so it's left in place."
 else
     if [ -z "$REINSTALL" ] && command -v tailscale >/dev/null 2>&1; then
         log "Logging out of Tailscale..."
@@ -88,7 +93,11 @@ else
         if dpkg -s tailscale-archive-keyring >/dev/null 2>&1; then
             $SUDO apt-get purge -y tailscale-archive-keyring >> "$LOG_FILE" 2>&1
         fi
-        $SUDO rm -f "$APT_LIST" "$APT_KEYRING" "$APT_PIN" "$LEGACY_APT_KEYRING"
+        $SUDO rm -f "$APT_LIST" "$APT_KEYRING" "$LEGACY_APT_KEYRING"
+        # The pin marks Tailscale as the plugin's (ts_installed_by_plugin), so
+        # it stays until the package is gone: a run that failed to purge it
+        # can then be repeated.
+        ts_installed || $SUDO rm -f "$APT_PIN"
         # apt's cached copies of that source's package lists, and the
         # downloaded package.
         $SUDO rm -f /var/lib/apt/lists/pkgs.tailscale.com_* \

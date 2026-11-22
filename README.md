@@ -106,7 +106,7 @@ hostname = "my-fpp-display"
 ## Troubleshooting
 
 - **Plugin log:** `/home/fpp/media/logs/plugin-fpp-tailscale.log`. It's also shown at the bottom of the plugin page. FPP rotates it. Sign-in links are left out of it, because they work like a one-time password until used.
-- **Daemon log:** `sudo journalctl -u tailscaled -n 50`
+- **Daemon log:** `sudo journalctl -u tailscaled -n 50` where systemd runs tailscaled (FPP on a Pi or BeagleBone). Where the plugin has to start tailscaled itself (no systemd), tailscaled's output goes to the plugin log instead.
 - **Page won't load:** `tail /home/fpp/media/logs/apache2-error.log`
 - **After an FPP OS upgrade:** the upgrade replaces the system, which removes Tailscale. If the FPP was signed in through the plugin, the plugin installs Tailscale again the next time FPP starts. With auto-connect on, it also reconnects; otherwise, click **Connect** on the plugin page. Either way, the FPP stays the same device in your Tailscale network, with no new sign-in (see "Where the sign-in is kept" below).
 - **Several devices named fpp, fpp-1, fpp-2:** older versions of the plugin signed in as a new device after each FPP OS upgrade, and Tailscale numbers a new device whose name is already taken. Remove the old ones in the Tailscale admin console (they show as offline), then rename the current one there.

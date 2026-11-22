@@ -35,7 +35,7 @@ up_worker() {
     if ts_logged_in; then
         # A bare `tailscale up` reconnects without changing any setting.
         log "Running: tailscale set --hostname=$host --accept-routes=false"
-        tailscale set "--hostname=$host" --accept-routes=false || return
+        timeout 15 tailscale set "--hostname=$host" --accept-routes=false || return
         log "Running: tailscale up"
         timeout --foreground 600 tailscale up 2>&1 | redact
         [ "${PIPESTATUS[0]}" -eq 0 ] || return
@@ -88,7 +88,7 @@ apply_routes() {
     case "$rc" in
         0)
             log "Running: tailscale set --accept-routes"
-            tailscale set --accept-routes
+            timeout 15 tailscale set --accept-routes
             ;;
         1)
             log "WARNING: not accepting subnet routes, because accepting them would cut this FPP off from its local network:"
@@ -103,10 +103,15 @@ apply_routes() {
 # At boot without auto-connect, tailscaled reconnects by itself, with whatever
 # subnet routes the tailnet approved while the FPP was off. Fails closed too.
 check_routes() {
-    local out rc=2
+    local out rc=2 route_all
     cfg_true accept_routes || return 0
-    [ "$(ts_pref RouteAll)" = true ] || return 0
-    if [ "$(ts_backend_state)" = Running ]; then
+    # Routes already off: nothing to check. Unreadable (tailscaled didn't
+    # answer, twice): turned off below, as for any check that can't run.
+    route_all=$(ts_pref RouteAll) || { sleep 2; route_all=$(ts_pref RouteAll); }
+    [ "$route_all" = false ] && return 0
+    if [ "$route_all" != true ]; then
+        out="couldn't read Tailscale's subnet-route setting"
+    elif [ "$(ts_backend_state)" = Running ]; then
         out=$(php "$PLUGIN_DIR/lan-routes.php")
         rc=$?
     else
